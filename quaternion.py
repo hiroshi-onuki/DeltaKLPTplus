@@ -46,6 +46,7 @@ def RepresentInteger(O0, n):
         assert gamma.reduced_norm() == n
         return gamma
 
+# return C, D s.t. gamma * (C*qj + D*qk) in O0*alpha + O0*N
 def IdealModConstraint(O0, qj, qk, gamma, alpha, N):
     Q = O0.basis_matrix().inverse()
     v_gamma_qj = vector(gamma * qj) * Q % N
