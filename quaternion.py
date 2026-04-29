@@ -8,6 +8,8 @@ from sage.all import (
     randint,
     sqrt,
     sum_of_k_squares,
+    vector,
+    matrix,
 )
 from sage.rings.factorint import factor_trial_division
 
@@ -44,6 +46,29 @@ def RepresentInteger(O0, n):
         assert gamma.reduced_norm() == n
         return gamma
 
+# Return C, D such that mu = Cj + Dk satisfies O_0 gamma*mu / O_0N = O_0 alpha / O_0N.
+def IdealModConstraint(O0, qj, qk, gamma, alpha, N):
+    assert qj in O0 and qk in O0 and gamma in O0 and alpha in O0
+    assert gamma.reduced_norm() % N == alpha.reduced_norm() % N == 0
+    Q = O0.basis_matrix().inverse()
+    v_gamma_qj = vector(gamma * qj) * Q
+    v_gamma_qk = vector(gamma * qk) * Q
+    print("v_gamma_qj:", v_gamma_qj)
+    print("v_gamma_qk:", v_gamma_qk)
+    R = ZZ.quotient_ring(N)
+    M = matrix(R, [v_gamma_qj, v_gamma_qk])
+    print("M:", M)
+
+    sol = M.left_kernel()
+    print("sol:", sol)
+
+    C, D = ZZ(sol[0]), ZZ(sol[1])
+    if (C == 0 and D == 0) or (C**2 + D**2) % N == 0:
+        # No solusion in Zj + Zk
+        return None
+    assert gamma * (C*qj + D*qk) in O0.left_ideal([alpha, N])
+    return C, D
+
 # return a left O0-ideal of norm N
 # Algorithm 3 in https://eprint.iacr.org/2024/760.pdf
 def RandomFixedNormIdeal(O0, N):
@@ -65,4 +90,4 @@ def RandomFixedNormIdeal(O0, N):
         alpha = sum(u * b for u, b in zip(us, basis))
     I = O0.left_ideal([gamma*alpha, N])
     assert norm(I) == N
-    return I
+    return I, gamma*alpha
