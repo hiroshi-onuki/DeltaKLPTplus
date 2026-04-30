@@ -1,5 +1,8 @@
 from sage.all import (
     ZZ,
+    GF,
+    log,
+    kronecker,
     ceil,
     floor,
     gcd,
@@ -12,6 +15,7 @@ from sage.all import (
     matrix,
 )
 from sage.rings.factorint import factor_trial_division
+from sage.modules.free_module_integer import IntegerLattice
 
 def SumOf2Squares(n):
     if n < 0:
@@ -46,28 +50,54 @@ def RepresentInteger(O0, n):
         assert gamma.reduced_norm() == n
         return gamma
 
-# Return C, D such that mu = Cj + Dk satisfies O_0 gamma*mu / O_0N = O_0 alpha / O_0N.
+# return C, D s.t. gamma * (C*qj + D*qk) in O0*alpha + O0*N
 def IdealModConstraint(O0, qj, qk, gamma, alpha, N):
-    assert qj in O0 and qk in O0 and gamma in O0 and alpha in O0
-    assert gamma.reduced_norm() % N == alpha.reduced_norm() % N == 0
     Q = O0.basis_matrix().inverse()
-    v_gamma_qj = vector(gamma * qj) * Q
-    v_gamma_qk = vector(gamma * qk) * Q
-    print("v_gamma_qj:", v_gamma_qj)
-    print("v_gamma_qk:", v_gamma_qk)
+    v_gamma_qj = vector(gamma * qj) * Q % N
+    v_gamma_qk = vector(gamma * qk) * Q % N
+    M_alpha = (-alpha).matrix() * Q % N
     R = ZZ.quotient_ring(N)
     M = matrix(R, [v_gamma_qj, v_gamma_qk])
-    print("M:", M)
+    M = M.stack(matrix(R, M_alpha))
 
-    sol = M.left_kernel()
-    print("sol:", sol)
+    sol = M.left_kernel()[1]
 
     C, D = ZZ(sol[0]), ZZ(sol[1])
     if (C == 0 and D == 0) or (C**2 + D**2) % N == 0:
-        # No solusion in Zj + Zk
-        return None
-    assert gamma * (C*qj + D*qk) in O0.left_ideal([alpha, N])
+        raise ValueError("IdealModConstraint: no solution")
+    assert (gamma * (C*qj + D*qk)) in O0.left_ideal([alpha, N])
     return C, D
+
+# Return a quaternion nu such that nu = Cj + Dk mod N and Nrd(nu) = l^e.
+def StrongApproximation(O0, N, C, D, l, max_cnt=10):
+    p = O0.discriminant()
+    e = floor(3 * log(N, l) + log(p, l))
+    Nrd_mu = p * (C**2 + D**2)
+    if (kronecker(Nrd_mu, N) == 1 and e % 2 == 1) or (kronecker(Nrd_mu, N) == -1 and e % 2 == 0):
+        e += 1
+
+    while True:
+        lam = ZZ(sqrt(GF(N)(l**e)/GF(N)(Nrd_mu)))
+        rhs = ZZ((l**e - lam**2 * Nrd_mu) / N)
+
+        for _ in range(max_cnt):
+            c = GF(N).random_element()
+            d = ZZ((GF(N)(rhs) / GF(N)(2*p*lam) - C*c) / GF(N)(D))
+            c = ZZ(c)
+
+            x = ZZ(-GF(N)(C)/GF(N)(D))
+            L = IntegerLattice([[N, N*x], [0, N**2]])
+            v = L.approximate_closest_vector([-lam*C - N*c, -lam*D - N*d])
+            Nc = N*c + v[0]
+            Nd = N*d + v[1]
+
+            tmp = ZZ((l**e - p*((lam*C + N*c)**2 + (lam*D + N*d)**2)) / N**2)
+            a, b = SumOf2Squares(tmp)
+            if a is not None and b is not None:
+                nu = O0([N*a, N*b, lam*C + N*c, lam*D + N*d])
+                assert nu.reduced_norm() == l**e
+                return nu
+        e += 2
 
 # return a left O0-ideal of norm N
 # Algorithm 3 in https://eprint.iacr.org/2024/760.pdf
