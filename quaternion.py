@@ -1,7 +1,6 @@
 from sage.all import (
     ZZ,
     GF,
-    log,
     kronecker,
     ceil,
     floor,
@@ -13,9 +12,10 @@ from sage.all import (
     sum_of_k_squares,
     vector,
     matrix,
+    CRT,
+    IntegralLattice,
 )
 from sage.rings.factorint import factor_trial_division
-from sage.modules.free_module_integer import IntegerLattice
 
 def SumOf2Squares(n):
     if n < 0:
@@ -33,6 +33,28 @@ def SumOf2Squares(n):
         except ValueError:
             return None, None
     return None, None
+
+def LLLBasis(I):
+    B = I.quaternion_algebra()
+    O = I.left_order()
+    Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace()/2 for b1 in B.basis() for b2 in B.basis()])
+    L = IntegralLattice(Gram, [list(b) for b in (O(2)*I).basis()])
+    return [O(b/2) for b in L.LLL().basis()]
+
+def SmallGenerator(I):
+    basis = LLLBasis(I)
+    return basis[0]
+
+def EquivalentRandomPrimeIdeal(I, constraint=lambda N: True):
+    O = I.left_order()
+    basis = LLLBasis(I)
+    N = 0
+    a = O(0)
+    while not (is_prime(N) and constraint(N)):
+        cs = [randint(-100, 100) for _ in range(len(basis))]
+        a = sum(c * b for c, b in zip(cs, basis))
+        N = ZZ(a.reduced_norm() // norm(I))
+    return I * (a.conjugate() / norm(I)), a, N
 
 # return gamma in O0 s.t. nrd(gamma) = n
 def RepresentInteger(O0, n):
@@ -60,6 +82,7 @@ def IdealModConstraint(O0, qj, qk, gamma, alpha, N):
     M = matrix(R, [v_gamma_qj, v_gamma_qk])
     M = M.stack(matrix(R, M_alpha))
 
+    print("IdealModConstraint: sol", M.left_kernel())
     sol = M.left_kernel()[1]
 
     C, D = ZZ(sol[0]), ZZ(sol[1])
@@ -68,36 +91,35 @@ def IdealModConstraint(O0, qj, qk, gamma, alpha, N):
     assert (gamma * (C*qj + D*qk)) in O0.left_ideal([alpha, N])
     return C, D
 
-# Return a quaternion nu such that nu = Cj + Dk mod N and Nrd(nu) = l^e.
-def StrongApproximation(O0, N, C, D, l, max_cnt=10):
+# Return a quaternion nu such that nu = Cj + Dk mod N*M and Nrd(nu) = nrd.
+def StrongApproximationTwoFactors(O0, N, M, C, D, nrd, max_cnt=10):
     p = O0.discriminant()
-    e = floor(3 * log(N, l) + log(p, l))
     Nrd_mu = p * (C**2 + D**2)
-    if (kronecker(Nrd_mu, N) == 1 and e % 2 == 1) or (kronecker(Nrd_mu, N) == -1 and e % 2 == 0):
-        e += 1
+    assert kronecker(Nrd_mu, N) == kronecker(nrd, N) and kronecker(Nrd_mu, M) == kronecker(nrd, M)
+    lam_N = ZZ(sqrt(GF(N)(nrd)/GF(N)(Nrd_mu)))
+    lam_M = ZZ(sqrt(GF(M)(nrd)/GF(M)(Nrd_mu)))
+    lam = CRT([lam_N, lam_M], [N, M])
+    rhs = ZZ((nrd - lam**2 * Nrd_mu) / (N*M))
+    if rhs < 0:
+        raise ValueError("StrongApproximationTwoFactors: no solution")
+    R = ZZ.quotient_ring(N*M)
 
-    while True:
-        lam = ZZ(sqrt(GF(N)(l**e)/GF(N)(Nrd_mu)))
-        rhs = ZZ((l**e - lam**2 * Nrd_mu) / N)
+    for _ in range(max_cnt):
+        c = 1
+        d = ZZ((R(rhs) / R(2*p*lam) - C*c) / R(D))
 
-        for _ in range(max_cnt):
-            c = GF(N).random_element()
-            d = ZZ((GF(N)(rhs) / GF(N)(2*p*lam) - C*c) / GF(N)(D))
-            c = ZZ(c)
+        x = ZZ(-R(C)/R(D))
+        L = IntegerLattice([[N*M, N*M*x], [0, (N*M)**2]])
+        v = L.approximate_closest_vector([-lam*C - N*M*c, -lam*D - N*M*d])
+        NMc = N*M*c + v[0]
+        NMd = N*M*d + v[1]
 
-            x = ZZ(-GF(N)(C)/GF(N)(D))
-            L = IntegerLattice([[N, N*x], [0, N**2]])
-            v = L.approximate_closest_vector([-lam*C - N*c, -lam*D - N*d])
-            Nc = N*c + v[0]
-            Nd = N*d + v[1]
-
-            tmp = ZZ((l**e - p*((lam*C + N*c)**2 + (lam*D + N*d)**2)) / N**2)
-            a, b = SumOf2Squares(tmp)
-            if a is not None and b is not None:
-                nu = O0([N*a, N*b, lam*C + N*c, lam*D + N*d])
-                assert nu.reduced_norm() == l**e
-                return nu
-        e += 2
+        tmp = ZZ((nrd - p*((lam*C + NMc)**2 + (lam*D + NMd)**2)) / (N*M)**2)
+        a, b = SumOf2Squares(tmp)
+        if a is not None and b is not None:
+            nu = O0([N*M*a, N*M*b, lam*C + NMc, lam*D + NMd])
+            assert nu.reduced_norm() == nrd
+            return nu
 
 # return a left O0-ideal of norm N
 # Algorithm 3 in https://eprint.iacr.org/2024/760.pdf
@@ -121,3 +143,30 @@ def RandomFixedNormIdeal(O0, N):
     I = O0.left_ideal([gamma*alpha, N])
     assert norm(I) == N
     return I, gamma*alpha
+
+def newKLPT(I, J, l, e):
+    assert I.right_order() == J.left_order()
+    _, qi, qj, qk = I.quaternion_algebra().basis()
+    p = I.quaternion_algebra().discriminant()
+
+    NCD = 0
+    N = 3
+    M = 3
+    while not (kronecker(l**e, N) == kronecker(NCD, N) and kronecker(l**e, M) == kronecker(NCD, M)):
+        I, alpha, N = EquivalentRandomPrimeIdeal(I)
+        J = alpha * J * alpha.inverse()
+        J, alpha, M = EquivalentRandomPrimeIdeal(J, constraint=lambda N: N % 4 == 1)
+        x, y = SumOf2Squares(M)
+        I1 = I * (x + y*qi)
+        I2 = I * J
+        beta1 = SmallGenerator(I1)
+        beta2 = SmallGenerator(I2)
+        assert norm(I1) == norm(I2) == N*M
+        print("newKLPT: N = %d, M = %d, NCD = %d" % (N, M, NCD))
+        C_N, D_N = IdealModConstraint(I.left_order(), qj, qk, beta2, beta1, N)
+        C_M, D_M = IdealModConstraint(I.left_order(), qj, qk, beta2, beta1, M)
+        C, D = CRT([C_N, C_M], [N, M]), CRT([D_N, D_M], [N, M])
+        NCD = p * (C**2 + D**2)
+    nu = StrongApproximationTwoFactors(I.left_order(), N, M, C, D, l**e)
+    assert beta2 * nu in I1
+    return I1.intersection(I1.left_order()*nu), nu
