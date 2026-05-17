@@ -14,8 +14,10 @@ from sage.all import (
     matrix,
     CRT,
     IntegralLattice,
+    proof,
 )
 from sage.rings.factorint import factor_trial_division
+proof.all(False)
 
 def SumOf2Squares(n):
     if n < 0:
@@ -131,7 +133,7 @@ def RandomFixedNormIdeal(O0, N):
     if N == 1:
         return O0.left_ideal([O0(1)])
 
-    M = ceil(10*O0.discriminant() / N)
+    M = ceil(O0.discriminant()**2 / N)
     gamma = RepresentInteger(O0, N * M)
 
     basis = O0.basis()
@@ -170,3 +172,45 @@ def newKLPT(I, J, l, e):
     nu = StrongApproximationTwoFactors(I.left_order(), N, M, C, D, l**e)
     assert beta2 * nu in I1
     return I1.intersection(I1.left_order()*nu), nu
+
+# Given two O0-ideals I1, I2 with the same norm N,
+# return beta1 in I1 and beta2 in I2 s.t. qI1(beta1) = qI2(beta2) approx p^(3/4) * N^(1/4)
+def EquivalentIdealsWithSameNorm(I1, I2):
+    assert I1.left_order() == I2.left_order()
+    assert norm(I1) == norm(I2)
+    O0 = I1.left_order()
+    Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace() for b1 in O0.basis() for b2 in O0.basis()])
+    Q = O0.basis_matrix()
+    Qinv = Q.inverse()
+    N = norm(I1)
+    R = ZZ.quotient_ring(ZZ(N))
+
+    # find vectors v1, v2, v3 corresponding to solusions of alpha2 * x * bar(alpha1) = 0 mod N
+    alpha1 = SmallGenerator(I1)
+    alpha2 = SmallGenerator(I2)
+    M = matrix(R, Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv)
+    kerM = M.left_kernel()
+    assert kerM.dimension() == 3
+    v1, v2, v3 = kerM.basis()
+    v1, v2, v3 = vector(ZZ, v1), vector(ZZ, v2), vector(ZZ, v3)
+
+    # (approximate) shortest solution for alpha2 * x * bar(alpha1) = 0 mod N
+    Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace() for b1 in O0.basis() for b2 in O0.basis()])
+    L = IntegralLattice(Gram, [list(v) for v in [v1, v2, v3, vector([0,0,0,N])]])
+    shortest_v = L.LLL().basis()[0]
+    x = sum([c * b for c, b in zip(shortest_v, O0.basis())])
+
+    # construct the lattice L = I1 \cap (O0 * x + Z)
+    L1 = IntegralLattice(Gram, [vector(b) * Qinv for b in I1.basis()])
+    Ox = IntegralLattice(Gram, [vector(b*x) * Qinv for b in O0.basis()])
+    OxZ = Ox.overlattice([vector([1,0,0,0])])
+    L = IntegralLattice(Gram, L1.intersection(OxZ).basis())
+
+    # beta1 is a (approximate) shortest vector in L, and beta2 = x * beta1 * x^{-1} in I2
+    shortest_v = L.LLL().basis()[0]
+    beta1 = sum([c * b for c, b in zip(shortest_v, O0.basis())])
+    assert beta1 in I1
+    beta2 = x * beta1 * x.conjugate() / x.reduced_norm()
+    assert beta2 in I2
+
+    return beta1, beta2
