@@ -150,20 +150,19 @@ def newKLPT(I, J, l, e):
     assert I.right_order() == J.left_order()
     _, qi, qj, qk = I.quaternion_algebra().basis()
     p = I.quaternion_algebra().discriminant()
+    N = norm(I)
+    assert is_prime(N)
+    assert kronecker(l**e, N) == kronecker(NCD, N)
 
     NCD = 0
-    N = 3
     M = 3
-    while not (kronecker(l**e, N) == kronecker(NCD, N) and kronecker(l**e, M) == kronecker(NCD, M)):
-        I, alpha, N = EquivalentRandomPrimeIdeal(I)
-        J = alpha * J * alpha.inverse()
-        J, alpha, M = EquivalentRandomPrimeIdeal(J, constraint=lambda N: N % 4 == 1)
+    while not kronecker(l**e, M) == kronecker(NCD, M):
+        J, _, M = EquivalentRandomPrimeIdeal(J, constraint=lambda N: N % 4 == 1)
         x, y = SumOf2Squares(M)
         I1 = I * (x + y*qi)
         I2 = I * J
-        beta1 = SmallGenerator(I1)
-        beta2 = SmallGenerator(I2)
         assert norm(I1) == norm(I2) == N*M
+        beta1, beta2 = EquivalentIdealsWithSameNorm(I1, I2, N, M)
         print("newKLPT: N = %d, M = %d, NCD = %d" % (N, M, NCD))
         C_N, D_N = IdealModConstraint(I.left_order(), qj, qk, beta2, beta1, N)
         C_M, D_M = IdealModConstraint(I.left_order(), qj, qk, beta2, beta1, M)
@@ -173,30 +172,39 @@ def newKLPT(I, J, l, e):
     assert beta2 * nu in I1
     return I1.intersection(I1.left_order()*nu), nu
 
-# Given two O0-ideals I1, I2 with the same norm N,
+# Given two O0-ideals I1, I2 with the same norm N*M, where N and M are primes,
 # return beta1 in I1 and beta2 in I2 s.t. qI1(beta1) = qI2(beta2) approx p^(3/4) * N^(1/4)
-def EquivalentIdealsWithSameNorm(I1, I2):
+def EquivalentIdealsWithSameNorm(I1, I2, N, M):
     assert I1.left_order() == I2.left_order()
-    assert norm(I1) == norm(I2)
+    assert norm(I1) == norm(I2) == N*M
+    assert is_prime(N) and is_prime(M)
     O0 = I1.left_order()
     Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace() for b1 in O0.basis() for b2 in O0.basis()])
     Q = O0.basis_matrix()
     Qinv = Q.inverse()
-    N = norm(I1)
-    R = ZZ.quotient_ring(ZZ(N))
+    ZN = ZZ.quotient_ring(ZZ(N))
+    ZM = ZZ.quotient_ring(ZZ(M))
 
-    # find vectors v1, v2, v3 corresponding to solusions of alpha2 * x * bar(alpha1) = 0 mod N
+    # find vectors v1, v2, v3 corresponding to solusions of alpha2 * x * bar(alpha1) = 0 mod N*M
     alpha1 = SmallGenerator(I1)
     alpha2 = SmallGenerator(I2)
-    M = matrix(R, Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv)
-    kerM = M.left_kernel()
-    assert kerM.dimension() == 3
-    v1, v2, v3 = kerM.basis()
-    v1, v2, v3 = vector(ZZ, v1), vector(ZZ, v2), vector(ZZ, v3)
+    MatN = matrix(ZN, Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv)
+    MatM = matrix(ZM, Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv)
+    kerN = MatN.left_kernel()
+    kerM = MatM.left_kernel()
+    assert kerN.dimension() == kerM.dimension() == 3
+    v1N, v2N, v3N = kerN.basis()
+    v1M, v2M, v3M = kerM.basis()
+    v1 = vector(ZZ, [CRT([ZZ(cN), ZZ(cM)], [N, M]) for cN, cM in zip(v1N, v1M)])
+    v2 = vector(ZZ, [CRT([ZZ(cN), ZZ(cM)], [N, M]) for cN, cM in zip(v2N, v2M)])
+    v3 = vector(ZZ, [CRT([ZZ(cN), ZZ(cM)], [N, M]) for cN, cM in zip(v3N, v3M)])
+    assert v1 * Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv % (N*M) == vector([0, 0, 0, 0])
+    assert v2 * Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv % (N*M) == vector([0, 0, 0, 0])
+    assert v3 * Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv % (N*M) == vector([0, 0, 0, 0])
 
     # (approximate) shortest solution for alpha2 * x * bar(alpha1) = 0 mod N
     Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace() for b1 in O0.basis() for b2 in O0.basis()])
-    L = IntegralLattice(Gram, [list(v) for v in [v1, v2, v3, vector([0,0,0,N])]])
+    L = IntegralLattice(Gram, [list(v) for v in [v1, v2, v3, vector([0,0,0,N*M])]])
     shortest_v = L.LLL().basis()[0]
     x = sum([c * b for c, b in zip(shortest_v, O0.basis())])
 
@@ -206,9 +214,14 @@ def EquivalentIdealsWithSameNorm(I1, I2):
     OxZ = Ox.overlattice([vector([1,0,0,0])])
     L = IntegralLattice(Gram, L1.intersection(OxZ).basis())
 
-    # beta1 is a (approximate) shortest vector in L, and beta2 = x * beta1 * x^{-1} in I2
-    shortest_v = L.LLL().basis()[0]
-    beta1 = sum([c * b for c, b in zip(shortest_v, O0.basis())])
+    bs = L.LLL().basis()
+    newN = 1
+    while not is_prime(newN):
+        cs = [randint(-100, 100) for _ in range(len(bs))]
+        v = sum(c * b for c, b in zip(cs, bs))
+        beta1 = sum([c * b for c, b in zip(v, O0.basis())])
+        newN = ZZ(beta1.reduced_norm() / (N*M))
+
     assert beta1 in I1
     beta2 = x * beta1 * x.conjugate() / x.reduced_norm()
     assert beta2 in I2
