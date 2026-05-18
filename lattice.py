@@ -36,8 +36,8 @@ def ClosestVectorDim2Euclidean(beta1, beta0, t):
     r1 = ZZ(floor(beta1.dot_product(residual) / EuclideanNorm(beta1) + ZZ(1)/ZZ(2)))
     return t - (residual - r1*beta1)
 
-def EnumerateCloseVectorsDim2Euclidean(L, t, close, m, B):
-    b0, b1 = [vector(ZZ, b) for b in L]
+def EnumerateCloseVectorsDim2Euclidean(b0, b1, t, close, m, B):
+    b0, b1 = vector(ZZ, b0), vector(ZZ, b1)
     t = vector(ZZ, t)
     close = vector(ZZ, close)
     m = ZZ(m)

@@ -123,7 +123,7 @@ def StrongApproximation(O0, N, C, D, nrd, max_cnt=1000):
     close = lattice.ClosestVectorDim2Euclidean(beta1, beta0, target)
     bound = ZZ(floor(nrd / p))
 
-    for v in lattice.EnumerateCloseVectorsDim2Euclidean((beta1, beta0), target, close, max_cnt, bound):
+    for v in lattice.EnumerateCloseVectorsDim2Euclidean(beta1, beta0, target, close, max_cnt, bound):
         Nc = N*c + v[0]
         Nd = N*d + v[1]
 
