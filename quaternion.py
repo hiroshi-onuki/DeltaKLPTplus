@@ -20,55 +20,18 @@ from sage.all import (
 from sage.rings.factorint import factor_trial_division
 proof.all(False)
 
-def _round_div(n, d):
-    n = ZZ(n)
-    d = ZZ(d)
-    if d < 0:
-        n = -n
-        d = -d
-    if n >= 0:
-        return (2*n + d) // (2*d)
-    return -((-2*n + d) // (2*d))
-
-def _floor_div(n, d):
-    n = ZZ(n)
-    d = ZZ(d)
-    if d < 0:
-        n = -n
-        d = -d
-    return n // d
-
-def _ceil_div(n, d):
-    return -_floor_div(-ZZ(n), ZZ(d))
-
-def _floor_sqrt(n):
-    n = ZZ(n)
-    if n < 0:
-        raise ValueError("square root of a negative integer")
-    return floor(sqrt(n))
-
-def _vec2(v):
-    v = vector(ZZ, v)
-    if len(v) != 2:
-        raise ValueError("expected a 2-dimensional vector")
-    return v
-
-def _dot(u, v):
-    return ZZ(u[0])*ZZ(v[0]) + ZZ(u[1])*ZZ(v[1])
-
 def EuclideanNorm(v):
-    v = _vec2(v)
-    return _dot(v, v)
+    v = vector(ZZ, v)
+    return v.dot_product(v)
 
 def ShortBasisEuclidean(b0, b1):
-    beta0 = _vec2(b0)
-    beta1 = _vec2(b1)
+    beta0, beta1 = vector(ZZ, b0), vector(ZZ, b1)
     if EuclideanNorm(beta0) < EuclideanNorm(beta1):
         beta0, beta1 = beta1, beta0
 
     gamma = beta0
     while True:
-        r = _round_div(_dot(beta0, beta1), EuclideanNorm(beta1))
+        r = ZZ(floor(beta0.dot_product(beta1) / EuclideanNorm(beta1) + ZZ(1)/ZZ(2)))
         gamma = beta0 - r*beta1
         if EuclideanNorm(gamma) < EuclideanNorm(beta1):
             beta0, beta1 = beta1, gamma
@@ -80,22 +43,17 @@ def ShortBasisEuclidean(b0, b1):
     return beta1, beta0
 
 def ClosestVectorEuclidean(beta1, beta0, t):
-    beta1 = vector(ZZ, beta1)
-    beta0 = vector(ZZ, beta0)
-    t = vector(ZZ, t)
-    N1 = beta1[0]**2 + beta1[1]**2
-    B = beta1[0]*beta0[0] + beta1[1]*beta0[1]
-    mu = N1 * beta0 - B * beta1
-    Nmu = mu[0]**2 + mu[1]**2
-    c = t - round(B*N1 / Nmu) * beta0
-    B = beta1[0]*c[0] + beta1[1]*c[1]
-    c = c - round(B / N1) * beta1
-    return t - c
+    beta1, beta0, t = vector(ZZ, beta1), vector(ZZ, beta0), vector(ZZ, t)
+    mu1 = EuclideanNorm(beta1)*beta0 - beta0.dot_product(beta1)*beta1
+    r0 = ZZ(floor(mu1.dot_product(t)*EuclideanNorm(beta1) / EuclideanNorm(mu1) + ZZ(1)/ZZ(2)))
+    residual = t - r0*beta0
+    r1 = ZZ(floor(beta1.dot_product(residual) / EuclideanNorm(beta1) + ZZ(1)/ZZ(2)))
+    return t - (residual - r1*beta1)
 
 def EnumerateCloseVectorsEuclidean(L, t, close, m, B):
-    b0, b1 = [_vec2(b) for b in L]
-    t = _vec2(t)
-    close = _vec2(close)
+    b0, b1 = [vector(ZZ, b) for b in L]
+    t = vector(ZZ, t)
+    close = vector(ZZ, close)
     m = ZZ(m)
     B = ZZ(B)
     if m <= 0:
@@ -103,7 +61,7 @@ def EnumerateCloseVectorsEuclidean(L, t, close, m, B):
 
     d = t - close
     a = EuclideanNorm(b0)
-    h = _dot(b0, b1)
+    h = b0.dot_product(b1)
     c = EuclideanNorm(b1)
     delta = a*c - h**2
     if delta <= 0:
@@ -117,13 +75,13 @@ def EnumerateCloseVectorsEuclidean(L, t, close, m, B):
         y_den = -y_den
 
     # From min_x ||d - x*b0 - y*b1||^2 = delta/a * (y-y0)^2.
-    y_radius = _floor_sqrt((a*B) // delta) + 2
-    y_min = _floor_div(y_num, y_den) - y_radius
-    y_max = _ceil_div(y_num, y_den) + y_radius
+    y_radius = floor(sqrt((a*B) // delta)) + 2
+    y_min = ZZ(floor(y_num / y_den)) - y_radius
+    y_max = ZZ(ceil(y_num / y_den)) + y_radius
 
     tries = ZZ(0)
-    db0 = _dot(d, b0)
-    db1 = _dot(d, b1)
+    db0 = d.dot_product(b0)
+    db1 = d.dot_product(b1)
     nd = EuclideanNorm(d)
     for y in range(y_min, y_max + 1):
         if tries >= m:
@@ -133,9 +91,9 @@ def EnumerateCloseVectorsEuclidean(L, t, close, m, B):
         D = Lx**2 - a*K
         if D < 0:
             continue
-        x_radius = _floor_sqrt(D) + 2
-        x_min = _floor_div(-Lx - x_radius, a) - 1
-        x_max = _ceil_div(-Lx + x_radius, a) + 1
+        x_radius = floor(sqrt(D)) + 2
+        x_min = ZZ(floor((-Lx - x_radius) / a)) - 1
+        x_max = ZZ(ceil((-Lx + x_radius) / a)) + 1
         for x in range(x_min, x_max + 1):
             if tries >= m:
                 break
