@@ -17,9 +17,135 @@ from sage.all import (
     log,
     proof,
 )
-from sage.modules.free_module_integer import IntegerLattice
 from sage.rings.factorint import factor_trial_division
 proof.all(False)
+
+def _round_div(n, d):
+    n = ZZ(n)
+    d = ZZ(d)
+    if d < 0:
+        n = -n
+        d = -d
+    if n >= 0:
+        return (2*n + d) // (2*d)
+    return -((-2*n + d) // (2*d))
+
+def _floor_div(n, d):
+    n = ZZ(n)
+    d = ZZ(d)
+    if d < 0:
+        n = -n
+        d = -d
+    return n // d
+
+def _ceil_div(n, d):
+    return -_floor_div(-ZZ(n), ZZ(d))
+
+def _floor_sqrt(n):
+    n = ZZ(n)
+    if n < 0:
+        raise ValueError("square root of a negative integer")
+    return floor(sqrt(n))
+
+def _vec2(v):
+    v = vector(ZZ, v)
+    if len(v) != 2:
+        raise ValueError("expected a 2-dimensional vector")
+    return v
+
+def _dot(u, v):
+    return ZZ(u[0])*ZZ(v[0]) + ZZ(u[1])*ZZ(v[1])
+
+def EuclideanNorm(v):
+    v = _vec2(v)
+    return _dot(v, v)
+
+def ShortBasisEuclidean(b0, b1):
+    beta0 = _vec2(b0)
+    beta1 = _vec2(b1)
+    if EuclideanNorm(beta0) < EuclideanNorm(beta1):
+        beta0, beta1 = beta1, beta0
+
+    gamma = beta0
+    while True:
+        r = _round_div(_dot(beta0, beta1), EuclideanNorm(beta1))
+        gamma = beta0 - r*beta1
+        if EuclideanNorm(gamma) < EuclideanNorm(beta1):
+            beta0, beta1 = beta1, gamma
+        else:
+            break
+
+    if EuclideanNorm(gamma) < EuclideanNorm(beta0):
+        beta0 = gamma
+    return beta1, beta0
+
+def ClosestVectorEuclidean(beta1, beta0, t):
+    beta1 = vector(ZZ, beta1)
+    beta0 = vector(ZZ, beta0)
+    t = vector(ZZ, t)
+    N1 = beta1[0]**2 + beta1[1]**2
+    B = beta1[0]*beta0[0] + beta1[1]*beta0[1]
+    mu = N1 * beta0 - B * beta1
+    Nmu = mu[0]**2 + mu[1]**2
+    c = t - round(B*N1 / Nmu) * beta0
+    B = beta1[0]*c[0] + beta1[1]*c[1]
+    c = c - round(B / N1) * beta1
+    return t - c
+
+def EnumerateCloseVectorsEuclidean(L, t, close, m, B):
+    b0, b1 = [_vec2(b) for b in L]
+    t = _vec2(t)
+    close = _vec2(close)
+    m = ZZ(m)
+    B = ZZ(B)
+    if m <= 0:
+        return
+
+    d = t - close
+    a = EuclideanNorm(b0)
+    h = _dot(b0, b1)
+    c = EuclideanNorm(b1)
+    delta = a*c - h**2
+    if delta <= 0:
+        raise ValueError("EnumerateCloseVectorsEuclidean: degenerate lattice basis")
+
+    det = ZZ(b0[0])*ZZ(b1[1]) - ZZ(b0[1])*ZZ(b1[0])
+    y_num = ZZ(b0[0])*ZZ(d[1]) - ZZ(b0[1])*ZZ(d[0])
+    y_den = det
+    if y_den < 0:
+        y_num = -y_num
+        y_den = -y_den
+
+    # From min_x ||d - x*b0 - y*b1||^2 = delta/a * (y-y0)^2.
+    y_radius = _floor_sqrt((a*B) // delta) + 2
+    y_min = _floor_div(y_num, y_den) - y_radius
+    y_max = _ceil_div(y_num, y_den) + y_radius
+
+    tries = ZZ(0)
+    db0 = _dot(d, b0)
+    db1 = _dot(d, b1)
+    nd = EuclideanNorm(d)
+    for y in range(y_min, y_max + 1):
+        if tries >= m:
+            break
+        K = c*y**2 - 2*db1*y + nd - B
+        Lx = h*y - db0
+        D = Lx**2 - a*K
+        if D < 0:
+            continue
+        x_radius = _floor_sqrt(D) + 2
+        x_min = _floor_div(-Lx - x_radius, a) - 1
+        x_max = _ceil_div(-Lx + x_radius, a) + 1
+        for x in range(x_min, x_max + 1):
+            if tries >= m:
+                break
+            tries += 1
+            v = close + x*b0 + y*b1
+            if EuclideanNorm(t - v) <= B:
+                yield v
+
+def EnumerateCloseVectors(L, t, close, m, B):
+    yield from EnumerateCloseVectorsEuclidean(L, t, close, m, B)
 
 def SumOf2Squares(n):
     if n < 0:
@@ -114,18 +240,22 @@ def StrongApproximation(O0, N, C, D, nrd, max_cnt=1000):
     rhs = ZZ((nrd - lam**2 * Nrd_mu) / N)
     R = ZZ.quotient_ring(N)
 
-    for _ in range(max_cnt):
-        c = 1
-        d = ZZ((R(rhs) / R(2*p*lam) - C*c) / R(D))
+    c = 1
+    d = ZZ((R(rhs) / R(2*p*lam) - C*c) / R(D))
 
-        x = ZZ(-R(C)/R(D))
-        L = IntegerLattice([[N, N*x], [0, N**2]])
-        v = L.approximate_closest_vector([-lam*C - N*c, -lam*D - N*d])
+    x = ZZ(-R(C)/R(D))
+    b0 = vector(ZZ, [N, N*x])
+    b1 = vector(ZZ, [0, N**2])
+    beta1, beta0 = ShortBasisEuclidean(b0, b1)
+    target = vector(ZZ, [-lam*C - N*c, -lam*D - N*d])
+    close = ClosestVectorEuclidean(beta1, beta0, target)
+    bound = ZZ(floor(nrd / p))
+
+    for v in EnumerateCloseVectorsEuclidean((beta1, beta0), target, close, max_cnt, bound):
         Nc = N*c + v[0]
         Nd = N*d + v[1]
 
         tmp = ZZ((nrd - p*((lam*C + Nc)**2 + (lam*D + Nd)**2)) / N**2)
-        print(tmp)
         a, b = SumOf2Squares(tmp)
         if a is not None and b is not None:
             nu = O0([N*a, N*b, lam*C + Nc, lam*D + Nd])
