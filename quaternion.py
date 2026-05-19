@@ -215,8 +215,33 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, M):
     assert v2 * Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv % (N*M) == vector([0, 0, 0, 0])
     assert v3 * Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv % (N*M) == vector([0, 0, 0, 0])
 
+    # test code
+    ZNM = ZZ.quotient_ring(ZZ(N*M))
+    MatNM = matrix(ZNM, Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv)
+    w = None
+    i = -1
+    for col in MatNM.columns():
+        for j in range(4):
+            if gcd(col[j], N*M) == 1:
+                w = col
+                i = j
+                break
+        if w is not None:
+            break
+    assert w is not None
+    Lbasis = []
+    for j in range(4):
+        v = vector(ZZ, [0, 0, 0, 0])
+        if j != i:
+            v[j] = 1
+            v[i] = ZZ(-w[i].inverse() * w[j])
+            assert vector(ZNM, v).dot_product(w) == 0
+        else:
+            v[i] = N*M
+        Lbasis.append(v)
+
     # (approximate) shortest solution for alpha2 * x * bar(alpha1) = 0 mod N
-    L = IntegralLattice(Gram, [list(v) for v in [v1, v2, v3, vector([0,0,0,N*M])]])
+    L = IntegralLattice(Gram, Lbasis)
     found = False
     e = 0
     while not found:
