@@ -1,9 +1,12 @@
 from sage.all import (
     ZZ,
+    QQ,
+    gcd,
     vector,
     floor,
     ceil,
     sqrt,
+    matrix,
 )
 
 def EuclideanNorm(v):
@@ -89,3 +92,74 @@ def EnumerateCloseVectorsDim2Euclidean(b0, b1, t, close, m, B):
             if EuclideanNorm(t - v) <= B:
                 ret.append(v)
     return ret
+
+def lattice_inner_product(L, x, y):
+    if hasattr(L, "inner_product"):
+        return QQ(L.inner_product(x, y))
+    return QQ(x * L.gram_matrix() * y)
+
+def lattice_norm(L, x):
+    return lattice_inner_product(L, x, x)
+
+# return coefficients q_i,j s.t.
+# Q(sum_i x_i*basis_i) = sum_i q_i,i*(x_i + sum_{j > i} q_i,j*x_j)^2.
+def make_quadratic_form_coeffs(basis, quadratic_form):
+    n = len(basis)
+    C = matrix(QQ, n, n)
+    q = matrix(QQ, n, n)
+
+    for i in range(n):
+        C[i, i] = quadratic_form(basis[i], basis[i])
+        for j in range(i + 1, n):
+            C[i, j] = quadratic_form(basis[i], basis[j])
+
+    for i in range(n):
+        q[i, i] = C[i, i] - sum(q[k, k] * q[k, i]**2 for k in range(i))
+        for j in range(i + 1, n):
+            q[i, j] = (C[i, j] - sum(q[k, k] * q[k, i] * q[k, j] for k in range(i))) / q[i, i]
+    return q
+
+# return alpha in L s.t. norm(alpha) < 2^a * norm(L) and condition(norm(alpha)/norm(L)).
+def element_for_response(L, a, condition):
+    red_basis = [vector(ZZ, b) for b in L.LLL().basis()]
+    q = make_quadratic_form_coeffs(red_basis, lambda x, y: lattice_inner_product(L, x, y))
+
+    n = len(red_basis)
+    S = [0] * n
+    U = [0] * n
+    upper = [ZZ(0)] * n
+    x = [ZZ(0)] * n
+    S[-1] = ZZ(2**a)
+
+    i = n - 1
+    Z = sqrt(S[i] / q[i, i])
+    upper[i] = ZZ(floor(Z - U[i]))
+    x[i] = ZZ(ceil(-Z - U[i])) - 1
+
+    while True:
+        x[i] += 1
+        while i < n and x[i] > upper[i]:
+            i += 1
+            if i == n:
+                return vector(ZZ, [0] * len(red_basis[0])), ZZ(0), False
+            x[i] += 1
+
+        if i > 0:
+            S[i - 1] = S[i] - q[i, i] * (x[i] + U[i])**2
+            i -= 1
+            U[i] = sum(q[i, j] * x[j] for j in range(i + 1, n))
+            assert q[i, i] > 0
+            Z = sqrt(S[i] / q[i, i])
+            upper[i] = ZZ(floor(Z - U[i]))
+            x[i] = ZZ(ceil(-Z - U[i])) - 1
+            continue
+
+        if any(x):
+            g = gcd(x)
+            coeffs = [ZZ(c // g) for c in x]
+            alpha = sum((coeffs[j] * red_basis[j] for j in range(n)), vector(ZZ, [0] * len(red_basis[0])))
+            newN = ZZ(lattice_norm(L, alpha))
+            if condition(newN):
+                return alpha, newN, True
+        else:
+            return vector(ZZ, [0] * len(red_basis[0])), ZZ(0), False

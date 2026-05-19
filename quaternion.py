@@ -217,13 +217,10 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, M):
     # (approximate) shortest solution for alpha2 * x * bar(alpha1) = 0 mod N
     Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace() for b1 in O0.basis() for b2 in O0.basis()])
     L = IntegralLattice(Gram, [list(v) for v in [v1, v2, v3, vector([0,0,0,N*M])]])
-    nx = 0
-    while gcd(nx, N*M) != 1:
-        bs = L.LLL().basis()
-        cs = [randint(-100, 100) for _ in range(len(bs))]
-        v = sum(c * b for c, b in zip(cs, bs))
-        x = sum([c * b for c, b in zip(v, O0.basis())])
-        nx = x.reduced_norm()
+    p = O0.discriminant()
+    v, nx, _ = lattice.element_for_response(L, ceil(log(p*N*M, 2)), condition=lambda newN: True)
+    x = sum(c * b for c, b in zip(v, O0.basis()))
+    assert nx == x.reduced_norm()
     assert alpha2 * x * alpha1.conjugate() in O0 * (N*M)
 
     # construct the lattice L = I1 \cap (O0 * x + Z)
