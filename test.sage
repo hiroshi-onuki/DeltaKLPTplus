@@ -10,7 +10,7 @@ M = random_prime(ceil(p**(1/2)))
 I1, beta1 = RandomFixedNormIdeal(O0, N*M)
 I2, beta2 = RandomFixedNormIdeal(O0, N*M)
 
-J1, J2, newN = EquivalentIdealsWithSameNorm(I1, I2, N, M)
+J1, J2, newN = EquivalentIdealsWithSameNorm(I1, I2, N*M)
 print(float(log(newN, 2)), float(3/4*log(p, 2) + 1/4*log(N*M, 2)))
 
 """

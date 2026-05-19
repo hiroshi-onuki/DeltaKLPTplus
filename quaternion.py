@@ -184,45 +184,27 @@ def newKLPT(I, J, l, e):
     assert beta2 * nu in I1
     return I1.intersection(I1.left_order()*nu), nu
 
-# Given two O0-ideals I1, I2 with the same norm N*M, where N and M are primes,
+# Given two O0-ideals I1, I2 with the same norm N,
 # return beta1 in I1 and beta2 in I2 s.t. qI1(beta1) = qI2(beta2) approx p^(3/4) * N^(1/4)
-def EquivalentIdealsWithSameNorm(I1, I2, N, M):
+def EquivalentIdealsWithSameNorm(I1, I2, N):
     assert I1.left_order() == I2.left_order()
-    assert norm(I1) == norm(I2) == N*M
-    assert is_prime(N) and is_prime(M)
+    assert norm(I1) == norm(I2) == N
     O0 = I1.left_order()
     p = O0.discriminant()
     Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace() for b1 in O0.basis() for b2 in O0.basis()])
     Q = O0.basis_matrix()
     Qinv = Q.inverse()
-    ZN = ZZ.quotient_ring(ZZ(N))
-    ZM = ZZ.quotient_ring(ZZ(M))
+    ZNM = ZZ.quotient_ring(ZZ(N))
 
-    # find vectors v1, v2, v3 corresponding to solusions of alpha2 * x * bar(alpha1) = 0 mod N*M
+    # construct the lattice L consisting of vectors corresponding to solutions of alpha2 * x * bar(alpha1) = 0 mod N*M
     alpha1 = SmallGenerator(I1)
     alpha2 = SmallGenerator(I2)
-    MatN = matrix(ZN, Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv)
-    MatM = matrix(ZM, Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv)
-    kerN = MatN.left_kernel()
-    kerM = MatM.left_kernel()
-    assert kerN.dimension() == kerM.dimension() == 3
-    v1N, v2N, v3N = kerN.basis()
-    v1M, v2M, v3M = kerM.basis()
-    v1 = vector(ZZ, [CRT([ZZ(cN), ZZ(cM)], [N, M]) for cN, cM in zip(v1N, v1M)])
-    v2 = vector(ZZ, [CRT([ZZ(cN), ZZ(cM)], [N, M]) for cN, cM in zip(v2N, v2M)])
-    v3 = vector(ZZ, [CRT([ZZ(cN), ZZ(cM)], [N, M]) for cN, cM in zip(v3N, v3M)])
-    assert v1 * Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv % (N*M) == vector([0, 0, 0, 0])
-    assert v2 * Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv % (N*M) == vector([0, 0, 0, 0])
-    assert v3 * Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv % (N*M) == vector([0, 0, 0, 0])
-
-    # test code
-    ZNM = ZZ.quotient_ring(ZZ(N*M))
     MatNM = matrix(ZNM, Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv)
     w = None
     i = -1
     for col in MatNM.columns():
         for j in range(4):
-            if gcd(col[j], N*M) == 1:
+            if gcd(col[j], N) == 1:
                 w = col
                 i = j
                 break
@@ -237,20 +219,20 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, M):
             v[i] = ZZ(-w[i].inverse() * w[j])
             assert vector(ZNM, v).dot_product(w) == 0
         else:
-            v[i] = N*M
+            v[i] = N
         Lbasis.append(v)
-
-    # (approximate) shortest solution for alpha2 * x * bar(alpha1) = 0 mod N
     L = IntegralLattice(Gram, Lbasis)
+
+    # short solution for alpha2 * x * bar(alpha1) = 0 mod N with gcd(norm(x), NM) = 1
     found = False
     e = 0
     while not found:
-        v, _, found = lattice.LatticeEnumeration(L, ceil(log(p*N*M, 2)/2) + e, condition=lambda newN: gcd(newN, N*M) == 1)
+        v, _, found = lattice.LatticeEnumeration(L, ceil(log(p*N, 2)/2) + e, condition=lambda newN: gcd(newN, N) == 1)
         e += 1
     x = sum(c * b for c, b in zip(v, O0.basis()))
     Nx = x.reduced_norm()
-    assert alpha2 * x * alpha1.conjugate() in O0 * (N*M)
-    assert gcd(Nx, N*M) == 1
+    assert alpha2 * x * alpha1.conjugate() in O0 * N
+    assert gcd(Nx, N) == 1
 
     # construct the lattice L = I1 \cap (O0 * x + Z)
     L1 = IntegralLattice(Gram, [vector(b) * Qinv for b in I1.basis()])
@@ -262,10 +244,10 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, M):
     found = False
     e = 0
     while not found:
-        v, newN, found = lattice.LatticeEnumeration(L, ceil(log(p*(N*M)**2*Nx, 2)/2) + e, condition=lambda newN: is_prime(ZZ(newN/(2*N*M))))
+        v, newN, found = lattice.LatticeEnumeration(L, ceil(log(p*N**2*Nx, 2)/2) + e, condition=lambda newN: is_prime(ZZ(newN/(2*N))))
         e += 1
     beta1 = sum(c * b for c, b in zip(v, O0.basis()))
-    newN = ZZ(newN / (N*M))
+    newN = ZZ(newN / N)
 
     assert beta1 in I1
     beta2 = x * beta1 * x.conjugate() / Nx
