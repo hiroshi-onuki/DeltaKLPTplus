@@ -7,7 +7,6 @@ from sage.all import (
     ceil,
     sqrt,
     matrix,
-    log,
 )
 
 def EuclideanNorm(v):
@@ -94,15 +93,10 @@ def EnumerateCloseVectorsDim2Euclidean(b0, b1, t, close, m, B):
                 ret.append(v)
     return ret
 
-def lattice_inner_product(L, x, y):
-    return QQ(x.inner_product(y))
-
-def lattice_norm(L, x):
-    return lattice_inner_product(L, x, x)
 
 # return coefficients q_i,j s.t.
 # Q(sum_i x_i*basis_i) = sum_i q_i,i*(x_i + sum_{j > i} q_i,j*x_j)^2.
-def make_quadratic_form_coeffs(basis, quadratic_form):
+def MakeQuatraticForm(basis, quadratic_form):
     n = len(basis)
     C = matrix(QQ, n, n)
     q = matrix(QQ, n, n)
@@ -118,10 +112,10 @@ def make_quadratic_form_coeffs(basis, quadratic_form):
             q[i, j] = (C[i, j] - sum(q[k, k] * q[k, i] * q[k, j] for k in range(i))) / q[i, i]
     return q
 
-# return alpha in L s.t. norm(alpha) < 2^a * norm(L) and condition(norm(alpha)/norm(L)).
-def element_for_response(L, a, condition):
+# return alpha in L s.t. norm(alpha) < 2^a and condition(norm(alpha))
+def LatticeEnumeration(L, a, condition):
     red_basis = [vector(ZZ, b) for b in L.LLL().basis()]
-    q = make_quadratic_form_coeffs(red_basis, lambda x, y: lattice_inner_product(L, x, y))
+    q = MakeQuatraticForm(red_basis, lambda x, y: x.inner_product(y))
 
     n = len(red_basis)
     S = [0] * n
@@ -157,7 +151,7 @@ def element_for_response(L, a, condition):
             g = gcd(x)
             coeffs = [ZZ(c // g) for c in x]
             alpha = sum((coeffs[j] * red_basis[j] for j in range(n)), vector(ZZ, [0] * len(red_basis[0])))
-            newN = ZZ(lattice_norm(L, alpha))
+            newN = ZZ(alpha.inner_product(alpha))
             if condition(newN):
                 return alpha, newN, True
         else:

@@ -220,7 +220,7 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, M):
     found = False
     e = 0
     while not found:
-        v, _, found = lattice.element_for_response(L, ceil(log(p*N*M, 2)/2) + e, condition=lambda newN: gcd(newN, N*M) == 1)
+        v, _, found = lattice.LatticeEnumeration(L, ceil(log(p*N*M, 2)/2) + e, condition=lambda newN: gcd(newN, N*M) == 1)
         e += 1
     x = sum(c * b for c, b in zip(v, O0.basis()))
     Nx = x.reduced_norm()
@@ -237,7 +237,7 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, M):
     found = False
     e = 0
     while not found:
-        v, newN, found = lattice.element_for_response(L, ceil(log(p*(N*M)**2*Nx, 2)/2) + e, condition=lambda newN: is_prime(ZZ(newN/(2*N*M))))
+        v, newN, found = lattice.LatticeEnumeration(L, ceil(log(p*(N*M)**2*Nx, 2)/2) + e, condition=lambda newN: is_prime(ZZ(newN/(2*N*M))))
         e += 1
     beta1 = sum(c * b for c, b in zip(v, O0.basis()))
     newN = ZZ(newN / (N*M))
