@@ -7,6 +7,7 @@ from sage.all import (
     ceil,
     sqrt,
     matrix,
+    log,
 )
 
 def EuclideanNorm(v):
@@ -94,9 +95,7 @@ def EnumerateCloseVectorsDim2Euclidean(b0, b1, t, close, m, B):
     return ret
 
 def lattice_inner_product(L, x, y):
-    if hasattr(L, "inner_product"):
-        return QQ(L.inner_product(x, y))
-    return QQ(x * L.gram_matrix() * y)
+    return QQ(x.inner_product(y))
 
 def lattice_norm(L, x):
     return lattice_inner_product(L, x, x)

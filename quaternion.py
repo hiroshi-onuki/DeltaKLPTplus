@@ -191,6 +191,7 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, M):
     assert norm(I1) == norm(I2) == N*M
     assert is_prime(N) and is_prime(M)
     O0 = I1.left_order()
+    p = O0.discriminant()
     Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace() for b1 in O0.basis() for b2 in O0.basis()])
     Q = O0.basis_matrix()
     Qinv = Q.inverse()
@@ -215,13 +216,12 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, M):
     assert v3 * Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv % (N*M) == vector([0, 0, 0, 0])
 
     # (approximate) shortest solution for alpha2 * x * bar(alpha1) = 0 mod N
-    Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace() for b1 in O0.basis() for b2 in O0.basis()])
     L = IntegralLattice(Gram, [list(v) for v in [v1, v2, v3, vector([0,0,0,N*M])]])
-    p = O0.discriminant()
-    v, nx, _ = lattice.element_for_response(L, ceil(log(p*N*M, 2)), condition=lambda newN: True)
+    v, _, _ = lattice.element_for_response(L, ceil(log(p*N*M, 2)/2), condition=lambda newN: gcd(newN, N*M) == 1)
     x = sum(c * b for c, b in zip(v, O0.basis()))
-    assert nx == x.reduced_norm()
+    Nx = x.reduced_norm()
     assert alpha2 * x * alpha1.conjugate() in O0 * (N*M)
+    assert gcd(x.reduced_norm(), N*M) == 1
 
     # construct the lattice L = I1 \cap (O0 * x + Z)
     L1 = IntegralLattice(Gram, [vector(b) * Qinv for b in I1.basis()])
@@ -229,16 +229,13 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, M):
     OxZ = Ox.overlattice([vector([1,0,0,0])])
     L = IntegralLattice(Gram, L1.intersection(OxZ).basis())
 
-    bs = L.LLL().basis()
-    newN = 1
-    while not is_prime(newN):
-        cs = [randint(-100, 100) for _ in range(len(bs))]
-        v = sum(c * b for c, b in zip(cs, bs))
-        beta1 = sum([c * b for c, b in zip(v, O0.basis())])
-        newN = ZZ(beta1.reduced_norm() / (N*M))
+    # find a short vector v in L s.t. the normalized norm of the corresponding element is prime
+    v, newN, _ = lattice.element_for_response(L, ceil(log(p*(N*M)**2*Nx, 2)/2) + 10, condition=lambda newN: is_prime(ZZ(newN/(2*N*M))))
+    beta1 = sum(c * b for c, b in zip(v, O0.basis()))
+    newN = ZZ(newN / (N*M))
 
     assert beta1 in I1
-    beta2 = x * beta1 * x.conjugate() / nx
+    beta2 = x * beta1 * x.conjugate() / Nx
     assert beta2 in I2
 
     return EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2), newN
