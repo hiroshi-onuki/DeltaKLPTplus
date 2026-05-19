@@ -217,11 +217,15 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, M):
 
     # (approximate) shortest solution for alpha2 * x * bar(alpha1) = 0 mod N
     L = IntegralLattice(Gram, [list(v) for v in [v1, v2, v3, vector([0,0,0,N*M])]])
-    v, _, _ = lattice.element_for_response(L, ceil(log(p*N*M, 2)/2), condition=lambda newN: gcd(newN, N*M) == 1)
+    found = False
+    e = 0
+    while not found:
+        v, _, found = lattice.element_for_response(L, ceil(log(p*N*M, 2)/2) + e, condition=lambda newN: gcd(newN, N*M) == 1)
+        e += 1
     x = sum(c * b for c, b in zip(v, O0.basis()))
     Nx = x.reduced_norm()
     assert alpha2 * x * alpha1.conjugate() in O0 * (N*M)
-    assert gcd(x.reduced_norm(), N*M) == 1
+    assert gcd(Nx, N*M) == 1
 
     # construct the lattice L = I1 \cap (O0 * x + Z)
     L1 = IntegralLattice(Gram, [vector(b) * Qinv for b in I1.basis()])
@@ -230,7 +234,11 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, M):
     L = IntegralLattice(Gram, L1.intersection(OxZ).basis())
 
     # find a short vector v in L s.t. the normalized norm of the corresponding element is prime
-    v, newN, _ = lattice.element_for_response(L, ceil(log(p*(N*M)**2*Nx, 2)/2) + 10, condition=lambda newN: is_prime(ZZ(newN/(2*N*M))))
+    found = False
+    e = 0
+    while not found:
+        v, newN, found = lattice.element_for_response(L, ceil(log(p*(N*M)**2*Nx, 2)/2) + e, condition=lambda newN: is_prime(ZZ(newN/(2*N*M))))
+        e += 1
     beta1 = sum(c * b for c, b in zip(v, O0.basis()))
     newN = ZZ(newN / (N*M))
 
