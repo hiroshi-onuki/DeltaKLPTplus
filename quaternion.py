@@ -15,6 +15,7 @@ from sage.all import (
     CRT,
     IntegralLattice,
     log,
+    factor,
 )
 from sage.rings.factorint import factor_trial_division
 import lattice
@@ -251,7 +252,7 @@ def EquivalentIdealsWithSameNorm(I1, I2, N):
         v, newN, found = lattice.LatticeEnumeration(L, ceil(log(p*N**2*Nx, 2)/2) + e, condition=lambda newN: is_prime(ZZ(newN/(2*N))))
         e += 1
     beta1 = sum(c * b for c, b in zip(v, O0.basis()))
-    newN = ZZ(newN / N)
+    newN = ZZ(newN / (2*N))
 
     assert beta1 in I1
     beta2 = x * beta1 * x.conjugate() / Nx
@@ -281,7 +282,7 @@ def EquivalentIdealsWithSameNormSmallN(I1, I2, N):
     b1 = None
     for i in range(2):
         for j in range(4):
-            if gcd(MatN[i, j], N) == 1:
+            if gcd(ZZ(MatN[i, j]), N) == 1:
                 c = MatN[i, j].inverse() * MatN[1-i, j]
                 b0 = vector(ZZ, [1, 1])
                 b1 = vector(ZZ, [0, 0])
@@ -299,6 +300,7 @@ def EquivalentIdealsWithSameNormSmallN(I1, I2, N):
         v, Nx, found = lattice.LatticeEnumeration(L, ceil(log(N, 2)/2) + e, condition=lambda newN: gcd(newN, N) == 1)
         e += 1
     x = v[0] + v[1]*qi
+    print(f"Found x={x}")
     assert x.reduced_norm() == Nx
     assert alpha2 * x * alpha1.conjugate() in O0 * N
 
@@ -311,14 +313,40 @@ def EquivalentIdealsWithSameNormSmallN(I1, I2, N):
     # find a short vector v in L s.t. the normalized norm of the corresponding element is prime
     found = False
     e = 0
+    print(L.discriminant(), (p*N**2*Nx)**2)
+    print(factor(N))
     while not found:
         v, newN, found = lattice.LatticeEnumeration(L, ceil(log(p*N**2*Nx, 2)/2) + e, condition=lambda newN: is_prime(ZZ(newN/(2*N))))
         e += 1
     beta1 = sum(c * b for c, b in zip(v, O0.basis()))
-    newN = ZZ(newN / N)
+    newN = ZZ(newN / (2*N))
 
     assert beta1 in I1
     beta2 = x * beta1 * x.conjugate() / Nx
     assert beta2 in I2
 
     return EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2), newN
+
+
+def deltaKLPT(I1, I2, l, e):
+    assert I1.left_order() == I2.left_order()
+    N = norm(I1)
+    assert norm(I2) == N
+    _, _, qj, qk = I1.quaternion_algebra().basis()
+    O = I1.left_order()
+    p = I1.quaternion_algebra().discriminant()
+
+    C, D = 0, 0
+    NCD = None
+    while NCD is None or kronecker(l**e, N) != kronecker(NCD, N):
+        I1, I2, N = EquivalentIdealsWithSameNormSmallN(I1, I2, N)
+        assert norm(I1) == norm(I2) == N
+        beta1 = SmallGenerator(I1)
+        beta2 = SmallGenerator(I2)
+        C, D = IdealModConstraint(O, qj, qk, beta2, beta1, N)
+        NCD = p * (C**2 + D**2)
+        print(f"Trying N={N}, NCD={NCD}")
+    print(float(log(N, 2)))
+    nu = StrongApproximation(O, N, C, D, l**e)
+    assert beta2 * nu in I1
+    return I1.intersection(O*nu), nu
