@@ -7,6 +7,7 @@ from sage.all import (
     ceil,
     sqrt,
     matrix,
+    factor,
 )
 
 def EuclideanNorm(v):

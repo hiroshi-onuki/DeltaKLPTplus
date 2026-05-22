@@ -71,20 +71,22 @@ def EquivalentRandomPrimeIdeal(I, constraint=lambda N: True):
     return I * (a.conjugate() / norm(I)), a, N
 
 # return gamma in O0 s.t. nrd(gamma) = n
-def RepresentInteger(O0, n):
+def FullRepresentInteger(O0, n):
     p = O0.discriminant()
     assert n > p, "RepresentInteger requires n > p"
 
-    B = floor(sqrt(n/p))
+    B = floor(sqrt(4*n/p))
     while True:
         z = randint(-B, B)
         t = randint(-B, B)
-        x, y = SumOf2Squares(n - p * (z**2 + t**2))
+        x, y = SumOf2Squares(4*n - p * (z**2 + t**2))
         if x is None or y is None:
             continue
-        gamma = O0([x, y, z, t])
-        assert gamma.reduced_norm() == n
-        return gamma
+        if (x - t) % 2 == (y - z) % 2 == 0:
+            if gcd([(x-t)//2, (y-z)//2, z, t]) == 1:
+                gamma = O0([x, y, z, t]) / 2
+                assert gamma.reduced_norm() == n
+                return gamma
 
 # return C, D s.t. gamma * (C*qj + D*qk) in O0*alpha + O0*N
 def IdealModConstraint(O0, qj, qk, gamma, alpha, N):
@@ -146,7 +148,9 @@ def RandomFixedNormIdeal(O0, N):
         return O0.left_ideal([O0(1)])
 
     M = ceil(O0.discriminant()**2 / N)
-    gamma = RepresentInteger(O0, N * M)
+    while gcd(N, M) != 1:
+        M += 1
+    gamma = FullRepresentInteger(O0, N * M)
 
     basis = O0.basis()
     alpha = O0(0)
@@ -194,15 +198,15 @@ def EquivalentIdealsWithSameNorm(I1, I2, N):
     Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace() for b1 in O0.basis() for b2 in O0.basis()])
     Q = O0.basis_matrix()
     Qinv = Q.inverse()
-    ZNM = ZZ.quotient_ring(ZZ(N))
+    ZN = ZZ.quotient_ring(ZZ(N))
 
-    # construct the lattice L consisting of vectors corresponding to solutions of alpha2 * x * bar(alpha1) = 0 mod N*M
+    # construct the lattice L consisting of vectors corresponding to solutions of alpha2 * x * bar(alpha1) = 0 mod N
     alpha1 = SmallGenerator(I1)
     alpha2 = SmallGenerator(I2)
-    MatNM = matrix(ZNM, Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv)
+    MatN = matrix(ZN, Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv)
     w = None
     i = -1
-    for col in MatNM.columns():
+    for col in MatN.columns():
         for j in range(4):
             if gcd(col[j], N) == 1:
                 w = col
@@ -217,13 +221,13 @@ def EquivalentIdealsWithSameNorm(I1, I2, N):
         if j != i:
             v[j] = 1
             v[i] = ZZ(-w[i].inverse() * w[j])
-            assert vector(ZNM, v).dot_product(w) == 0
+            assert vector(ZN, v).dot_product(w) == 0
         else:
             v[i] = N
         Lbasis.append(v)
     L = IntegralLattice(Gram, Lbasis)
 
-    # short solution for alpha2 * x * bar(alpha1) = 0 mod N with gcd(norm(x), NM) = 1
+    # short solution for alpha2 * x * bar(alpha1) = 0 mod N with gcd(norm(x), N) = 1
     found = False
     e = 0
     while not found:
@@ -233,6 +237,70 @@ def EquivalentIdealsWithSameNorm(I1, I2, N):
     Nx = x.reduced_norm()
     assert alpha2 * x * alpha1.conjugate() in O0 * N
     assert gcd(Nx, N) == 1
+
+    # construct the lattice L = I1 \cap (O0 * x + Z)
+    L1 = IntegralLattice(Gram, [vector(b) * Qinv for b in I1.basis()])
+    Ox = IntegralLattice(Gram, [vector(b*x) * Qinv for b in O0.basis()])
+    OxZ = Ox.overlattice([vector([1,0,0,0])])
+    L = IntegralLattice(Gram, L1.intersection(OxZ).basis())
+
+    # find a short vector v in L s.t. the normalized norm of the corresponding element is prime
+    found = False
+    e = 0
+    while not found:
+        v, newN, found = lattice.LatticeEnumeration(L, ceil(log(p*N**2*Nx, 2)/2) + e, condition=lambda newN: is_prime(ZZ(newN/(2*N))))
+        e += 1
+    beta1 = sum(c * b for c, b in zip(v, O0.basis()))
+    newN = ZZ(newN / N)
+
+    assert beta1 in I1
+    beta2 = x * beta1 * x.conjugate() / Nx
+    assert beta2 in I2
+
+    return EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2), newN
+
+# Given two O0-ideals I1, I2 with the same norm N,
+# return beta1 in I1 and beta2 in I2 s.t. qI1(beta1) = qI2(beta2) approx p^(1/2) * N^(1/2)
+def EquivalentIdealsWithSameNormSmallN(I1, I2, N):
+    assert I1.left_order() == I2.left_order()
+    assert norm(I1) == norm(I2) == N
+    O0 = I1.left_order()
+    p = O0.discriminant()
+    _, qi, _, _ = O0.quaternion_algebra().basis()
+    Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace() for b1 in O0.basis() for b2 in O0.basis()])
+    Q = O0.basis_matrix()
+    Qinv = Q.inverse()
+    ZN = ZZ.quotient_ring(ZZ(N))
+
+    # construct the lattice L consisting of vectors corresponding to solutions of alpha2 * x * bar(alpha1) = 0 mod N
+    alpha1 = SmallGenerator(I1)
+    alpha2 = SmallGenerator(I2)
+    MatN = matrix(ZN, Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv)
+    MatN = MatN[:2,:]
+    b0 = None
+    b1 = None
+    for i in range(2):
+        for j in range(4):
+            if gcd(MatN[i, j], N) == 1:
+                c = MatN[i, j].inverse() * MatN[1-i, j]
+                b0 = vector(ZZ, [1, 1])
+                b1 = vector(ZZ, [0, 0])
+                b0[i] = -c
+                b1[i] = N
+                assert vector(ZN, b0) * MatN == 0
+                break
+        if b0 is not None:
+            break
+    assert b0 is not None
+    L = IntegralLattice(matrix([[1, 0], [0, 1]]), [b0, b1])
+    e = 0
+    found = False
+    while not found:
+        v, Nx, found = lattice.LatticeEnumeration(L, ceil(log(N, 2)/2) + e, condition=lambda newN: gcd(newN, N) == 1)
+        e += 1
+    x = v[0] + v[1]*qi
+    assert x.reduced_norm() == Nx
+    assert alpha2 * x * alpha1.conjugate() in O0 * N
 
     # construct the lattice L = I1 \cap (O0 * x + Z)
     L1 = IntegralLattice(Gram, [vector(b) * Qinv for b in I1.basis()])
