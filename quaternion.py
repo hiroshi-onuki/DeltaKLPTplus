@@ -73,7 +73,7 @@ def EquivalentRandomPrimeIdeal(I, constraint=lambda N: True):
         cs = [randint(-100, 100) for _ in range(len(basis))]
         a = sum(c * b for c, b in zip(cs, basis))
         N = ZZ(a.reduced_norm() // norm(I))
-    return I * (a.conjugate() / norm(I)), a, N
+    return EquivalentIdeal(I, a), a, N
 
 # return gamma in O0 s.t. nrd(gamma) = n
 def FullRepresentInteger(O0, n):
@@ -149,7 +149,8 @@ def KLPT(I, n1, n2):
     _, _, qj, qk = I.quaternion_algebra().basis()
     assert n1 > p**(0.5)
     assert n2 > p**(2.5)
-    L, alpha, N = EquivalentRandomPrimeIdeal(I)
+    L, _, N = EquivalentRandomPrimeIdeal(I)
+    alpha = SmallGenerator(L)
 
     pCD = None
     while pCD is None or kronecker(n2, N) != kronecker(pCD, N):
@@ -364,7 +365,6 @@ def deltaKLPT(I1, I2, l, e):
         beta2 = SmallGenerator(I2)
         C, D = IdealModConstraint(O, qj, qk, beta2, beta1, N)
         NCD = p * (C**2 + D**2)
-        print(N)
     nu = StrongApproximation(O, N, C, D, l**e)
     assert beta2 * nu in I1
     return I1.intersection(O*nu), nu
