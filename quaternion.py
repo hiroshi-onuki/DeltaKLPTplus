@@ -15,7 +15,6 @@ from sage.all import (
     CRT,
     IntegralLattice,
     log,
-    factor,
 )
 from sage.rings.factorint import factor_trial_division
 import lattice
@@ -365,6 +364,7 @@ def deltaKLPT(I1, I2, l, e):
         beta2 = SmallGenerator(I2)
         C, D = IdealModConstraint(O, qj, qk, beta2, beta1, N)
         NCD = p * (C**2 + D**2)
+    print(float(log(N, 2)))
     nu = StrongApproximation(O, N, C, D, l**e)
     assert beta2 * nu in I1
     return I1.intersection(O*nu), nu
