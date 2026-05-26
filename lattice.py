@@ -153,8 +153,6 @@ def LatticeEnumeration(L, a, condition):
             coeffs = [ZZ(c // g) for c in x]
             alpha = sum((coeffs[j] * red_basis[j] for j in range(n)), vector(ZZ, [0] * len(red_basis[0])))
             newN = ZZ(alpha.inner_product(alpha))
-            print(f"Found alpha with norm {factor(newN)}, alpha={alpha}")
-            assert n == 2
             if condition(newN):
                 return alpha, newN, True
         else:

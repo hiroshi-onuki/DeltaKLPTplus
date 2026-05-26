@@ -20,6 +20,7 @@ from sage.all import (
 from sage.rings.factorint import factor_trial_division
 import lattice
 
+# return x, y s.t. n = x^2 + y^2, or None, None if no such x, y exist
 def SumOf2Squares(n):
     if n < 0:
         return None, None
@@ -37,6 +38,7 @@ def SumOf2Squares(n):
             return None, None
     return None, None
 
+# LLL reduced basis of I as a left O-ideal
 def LLLBasis(I):
     B = I.quaternion_algebra()
     O = I.left_order()
@@ -44,6 +46,7 @@ def LLLBasis(I):
     L = IntegralLattice(Gram, [list(b) for b in (O(2)*I).basis()])
     return [O(b/2) for b in L.LLL().basis()]
 
+# return a s.t. I = O*a + O*nrd(I)
 def SmallGenerator(I):
     basis = LLLBasis(I)
     a = 0
@@ -60,6 +63,7 @@ def EquivalentIdeal(I, beta):
     assert beta in I
     return I * (beta.conjugate() / norm(I))
 
+# return J ~ I with nrd(J) is prime
 def EquivalentRandomPrimeIdeal(I, constraint=lambda N: True):
     O = I.left_order()
     basis = LLLBasis(I)
@@ -138,6 +142,24 @@ def StrongApproximation(O0, N, C, D, nrd, max_cnt=1000):
             return nu
     raise ValueError("StrongApproximation: no solution found after max_cnt tries")
 
+# return J ~ I with nrd(J) is n1*n2
+def KLPT(I, n1, n2):
+    p = I.quaternion_algebra().discriminant()
+    O = I.left_order()
+    _, _, qj, qk = I.quaternion_algebra().basis()
+    assert n1 > p**(0.5)
+    assert n2 > p**(2.5)
+    L, alpha, N = EquivalentRandomPrimeIdeal(I)
+
+    pCD = None
+    while pCD is None or kronecker(n2, N) != kronecker(pCD, N):
+        gamma = FullRepresentInteger(L.left_order(), n1 * N)
+        C, D = IdealModConstraint(L.left_order(), qj, qk, gamma, alpha, N)
+        pCD = p * (C**2 + D**2)
+    nu = StrongApproximation(L.left_order(), N, C, D, n2)
+    assert gamma * nu in L
+    return EquivalentIdeal(L, gamma * nu)
+
 # return a left O0-ideal of norm N
 # Algorithm 3 in https://eprint.iacr.org/2024/760.pdf
 def RandomFixedNormIdeal(O0, N):
@@ -209,7 +231,7 @@ def EquivalentIdealsWithSameNorm(I1, I2, N):
     i = -1
     for col in MatN.columns():
         for j in range(4):
-            if gcd(col[j], N) == 1:
+            if gcd(ZZ(col[j]), N) == 1:
                 w = col
                 i = j
                 break
@@ -232,7 +254,7 @@ def EquivalentIdealsWithSameNorm(I1, I2, N):
     found = False
     e = 0
     while not found:
-        v, _, found = lattice.LatticeEnumeration(L, ceil(log(p*N, 2)/2) + e, condition=lambda newN: gcd(newN, N) == 1)
+        v, _, found = lattice.LatticeEnumeration(L, ceil(log(p*N, 2)/2) + e, condition=lambda newN: gcd(newN/2, N) == 1)
         e += 1
     x = sum(c * b for c, b in zip(v, O0.basis()))
     Nx = x.reduced_norm()
@@ -300,7 +322,6 @@ def EquivalentIdealsWithSameNormSmallN(I1, I2, N):
         v, Nx, found = lattice.LatticeEnumeration(L, ceil(log(N, 2)/2) + e, condition=lambda newN: gcd(newN, N) == 1)
         e += 1
     x = v[0] + v[1]*qi
-    print(f"Found x={x}")
     assert x.reduced_norm() == Nx
     assert alpha2 * x * alpha1.conjugate() in O0 * N
 
@@ -313,8 +334,6 @@ def EquivalentIdealsWithSameNormSmallN(I1, I2, N):
     # find a short vector v in L s.t. the normalized norm of the corresponding element is prime
     found = False
     e = 0
-    print(L.discriminant(), (p*N**2*Nx)**2)
-    print(factor(N))
     while not found:
         v, newN, found = lattice.LatticeEnumeration(L, ceil(log(p*N**2*Nx, 2)/2) + e, condition=lambda newN: is_prime(ZZ(newN/(2*N))))
         e += 1
@@ -339,14 +358,13 @@ def deltaKLPT(I1, I2, l, e):
     C, D = 0, 0
     NCD = None
     while NCD is None or kronecker(l**e, N) != kronecker(NCD, N):
-        I1, I2, N = EquivalentIdealsWithSameNormSmallN(I1, I2, N)
+        I1, I2, N = EquivalentIdealsWithSameNorm(I1, I2, N)
         assert norm(I1) == norm(I2) == N
         beta1 = SmallGenerator(I1)
         beta2 = SmallGenerator(I2)
         C, D = IdealModConstraint(O, qj, qk, beta2, beta1, N)
         NCD = p * (C**2 + D**2)
-        print(f"Trying N={N}, NCD={NCD}")
-    print(float(log(N, 2)))
+        print(N)
     nu = StrongApproximation(O, N, C, D, l**e)
     assert beta2 * nu in I1
     return I1.intersection(O*nu), nu
