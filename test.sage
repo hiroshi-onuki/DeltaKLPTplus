@@ -18,11 +18,24 @@ assert not beta1/2 in O0
 assert not beta2/2 in O0
 print(f"Generated ideals I1, I2 with norm {N1}, {N2} and generators beta1, beta2")
 
+Nsk = random_prime(ceil(p**4))
+Ncom = random_prime(ceil(p**4))
+Nchl = 2^128
+
+beta1 = O0(0)
+beta2 = O0(0)
+Isk, beta1 = RandomFixedNormIdeal(O0, Nsk)
+Icom, beta2 = RandomFixedNormIdeal(O0, Ncom)
+Ichl, _ = RandomFixedNormIdeal(O0, Nchl)
+print(f"Generated ideals Isk, Icom, Ichl.")
+
+IskIchl = Isk.intersection(Ichl)
+
 n1 = random_prime(ceil(p**(0.7)))
 n2 = random_prime(ceil(p**(2.8)))
-J1 = KLPT(I1, n1, n2)
+J1, _ = KLPT(Icom, n1, n2)
 print(norm(J1) == n1*n2)
-J2 = KLPT(I2, n1, n2)
+J2, _ = KLPT(IskIchl, n1, n2)
 print(norm(J2) == n1*n2)
 
 N = n1*n2

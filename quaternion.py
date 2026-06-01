@@ -6,6 +6,7 @@ from sage.all import (
     floor,
     gcd,
     is_prime,
+    random_prime,
     norm,
     randint,
     sqrt,
@@ -110,7 +111,7 @@ def IdealModConstraint(O0, qj, qk, gamma, alpha, N):
     return C, D
 
 # Return a quaternion nu such that nu = Cj + Dk mod N and Nrd(nu) = nrd.
-def StrongApproximation(O0, N, C, D, nrd, max_cnt=1000):
+def StrongApproximation(O0, N, C, D, nrd, max_cnt=1000, condition=lambda nu: True):
     p = O0.discriminant()
     Nrd_mu = p * (C**2 + D**2)
     assert kronecker(Nrd_mu, N) == kronecker(nrd, N)
@@ -138,7 +139,8 @@ def StrongApproximation(O0, N, C, D, nrd, max_cnt=1000):
         if a is not None and b is not None:
             nu = O0([N*a, N*b, lam*C + Nc, lam*D + Nd])
             assert nu.reduced_norm() == nrd
-            return nu
+            if condition(nu):
+                return nu
     raise ValueError("StrongApproximation: no solution found after max_cnt tries")
 
 # return J ~ I with nrd(J) is n1*n2
@@ -158,7 +160,7 @@ def KLPT(I, n1, n2):
         pCD = p * (C**2 + D**2)
     nu = StrongApproximation(L.left_order(), N, C, D, n2)
     assert gamma * nu in L
-    return EquivalentIdeal(L, gamma * nu)
+    return EquivalentIdeal(L, gamma * nu), gamma * nu
 
 # return a left O0-ideal of norm N
 # Algorithm 3 in https://eprint.iacr.org/2024/760.pdf
@@ -184,32 +186,6 @@ def RandomFixedNormIdeal(O0, N):
     I = O0.left_ideal([gamma*alpha, N])
     assert norm(I) == N
     return I, gamma*alpha
-
-def newKLPT(I, J, l, e):
-    assert I.right_order() == J.left_order()
-    _, qi, qj, qk = I.quaternion_algebra().basis()
-    p = I.quaternion_algebra().discriminant()
-    N = ZZ(norm(I))
-    assert is_prime(N)
-
-    NCD = 0
-    newN = 3
-    while not kronecker(l**e, newN) == kronecker(NCD, newN):
-        J, _, M = EquivalentRandomPrimeIdeal(J, constraint=lambda N: N % 4 == 1)
-        x, y = SumOf2Squares(M)
-        I1 = I * (x + y*qi)
-        I2 = I * J
-        assert norm(I1) == norm(I2) == N*M
-        I1, I2, newN = EquivalentIdealsWithSameNorm(I1, I2, N, M)
-        assert norm(I1) == norm(I2) == newN
-        beta1 = SmallGenerator(I1)
-        beta2 = SmallGenerator(I2)
-        C, D = IdealModConstraint(I.left_order(), qj, qk, beta2, beta1, newN)
-        NCD = p * (C**2 + D**2)
-    print(float(log(newN, 2)))
-    nu = StrongApproximation(I.left_order(), newN, C, D, l**e)
-    assert beta2 * nu in I1
-    return I1.intersection(I1.left_order()*nu), nu
 
 # Given two O0-ideals I1, I2 with the same norm N,
 # return beta1 in I1 and beta2 in I2 s.t. qI1(beta1) = qI2(beta2) approx p^(3/4) * N^(1/4)
@@ -346,25 +322,28 @@ def EquivalentIdealsWithSameNormSmallN(I1, I2, N):
 
     return EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2), newN
 
+def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound):
+    assert Icom.left_order() == IskIchl.left_order()
+    _, _, qj, qk = Icom.quaternion_algebra().basis()
+    O = Icom.left_order()
+    p = Icom.quaternion_algebra().discriminant()
 
-def deltaKLPT(I1, I2, l, e):
-    assert I1.left_order() == I2.left_order()
-    N = norm(I1)
-    assert norm(I2) == N
-    _, _, qj, qk = I1.quaternion_algebra().basis()
-    O = I1.left_order()
-    p = I1.quaternion_algebra().discriminant()
+    n1 = random_prime(ceil(p**(0.7)))
+    n2 = random_prime(ceil(p**(2.8)))
+    J1, _ = KLPT(Icom, n1, n2)
+    J2, alpha2 = KLPT(IskIchl, n1, n2)
+    assert norm(J1) == norm(J2) == n1*n2
 
     C, D = 0, 0
+    N = n1*n2
     NCD = None
-    while NCD is None or kronecker(l**e, N) != kronecker(NCD, N):
-        I1, I2, N = EquivalentIdealsWithSameNorm(I1, I2, N)
-        assert norm(I1) == norm(I2) == N
-        beta1 = SmallGenerator(I1)
-        beta2 = SmallGenerator(I2)
+    while NCD is None or N > norm_bound or kronecker(l**e, N) != kronecker(NCD, N):
+        J1, J2, N = EquivalentIdealsWithSameNorm(J1, J2, N)
+        assert norm(J1) == norm(J2) == N
+        beta1 = SmallGenerator(J1)
+        beta2 = SmallGenerator(J2)
         C, D = IdealModConstraint(O, qj, qk, beta2, beta1, N)
         NCD = p * (C**2 + D**2)
-    print(float(log(N, 2)))
-    nu = StrongApproximation(O, N, C, D, l**e)
-    assert beta2 * nu in I1
-    return I1.intersection(O*nu), nu
+    nu = StrongApproximation(O, N, C, D, l**e, condition=lambda nu: not nu*alpha2.conjugate()/2 in O)
+    assert beta2 * nu in J1
+    return J1.intersection(O*nu), nu
