@@ -350,4 +350,5 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound):
     assert J2 == EquivalentIdeal(IskIchl, alpha2)
     nu = StrongApproximation(O, N, C, D, l**e, condition=lambda nu: not nu*alpha2.conjugate()/(2*N) in O)
     assert beta2 * nu in J1
+    assert J1.intersection(O*nu) == J2 * nu
     return J1.intersection(O*nu), nu

@@ -23,6 +23,8 @@ print(f"Norm of Isk intersect Ichl is {factor(IskIchl.norm())}")
 assert IskIchl.left_order() == O0
 
 L, nu = deltaKLPTforSign(Icom, IskIchl, 2, 265*4, 2^255)
-
+beta = SmallGenerator(L)
+I = L + O0 * 2**(265*4)
+print(I.is_principal())
 
 
