@@ -150,17 +150,18 @@ def KLPT(I, n1, n2):
     _, _, qj, qk = I.quaternion_algebra().basis()
     assert n1 > p**(0.5)
     assert n2 > p**(2.5)
-    L, _, N = EquivalentRandomPrimeIdeal(I)
-    alpha = SmallGenerator(L)
+    L, alpha, N = EquivalentRandomPrimeIdeal(I)
+    beta = SmallGenerator(L)
 
     pCD = None
     while pCD is None or kronecker(n2, N) != kronecker(pCD, N):
         gamma = FullRepresentInteger(L.left_order(), n1 * N)
-        C, D = IdealModConstraint(L.left_order(), qj, qk, gamma, alpha, N)
+        C, D = IdealModConstraint(L.left_order(), qj, qk, gamma, beta, N)
         pCD = p * (C**2 + D**2)
     nu = StrongApproximation(L.left_order(), N, C, D, n2)
     assert gamma * nu in L
-    return EquivalentIdeal(L, gamma * nu), gamma * nu
+    assert gamma * nu * alpha / N in I
+    return EquivalentIdeal(L, gamma * nu), gamma * nu * alpha / N
 
 # return a left O0-ideal of norm N
 # Algorithm 3 in https://eprint.iacr.org/2024/760.pdf
@@ -256,7 +257,7 @@ def EquivalentIdealsWithSameNorm(I1, I2, N):
     beta2 = x * beta1 * x.conjugate() / Nx
     assert beta2 in I2
 
-    return EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2), newN
+    return EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2), beta1, beta2, newN
 
 # Given two O0-ideals I1, I2 with the same norm N,
 # return beta1 in I1 and beta2 in I2 s.t. qI1(beta1) = qI2(beta2) approx p^(1/2) * N^(1/2)
@@ -338,12 +339,15 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound):
     N = n1*n2
     NCD = None
     while NCD is None or N > norm_bound or kronecker(l**e, N) != kronecker(NCD, N):
-        J1, J2, N = EquivalentIdealsWithSameNorm(J1, J2, N)
-        assert norm(J1) == norm(J2) == N
+        J1, J2, _, beta2, newN = EquivalentIdealsWithSameNorm(J1, J2, N)
+        assert norm(J1) == norm(J2) == newN
+        alpha2 = beta2*alpha2 / N
+        N = newN
         beta1 = SmallGenerator(J1)
         beta2 = SmallGenerator(J2)
         C, D = IdealModConstraint(O, qj, qk, beta2, beta1, N)
         NCD = p * (C**2 + D**2)
-    nu = StrongApproximation(O, N, C, D, l**e, condition=lambda nu: not nu*alpha2.conjugate()/2 in O)
+    assert J2 == EquivalentIdeal(IskIchl, alpha2)
+    nu = StrongApproximation(O, N, C, D, l**e, condition=lambda nu: not nu*alpha2.conjugate()/(2*N) in O)
     assert beta2 * nu in J1
     return J1.intersection(O*nu), nu
