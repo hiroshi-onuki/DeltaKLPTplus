@@ -246,7 +246,7 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, num_vectors=10):
     L = IntegralLattice(Gram, L1.intersection(OxZ).basis())
 
     # find a short vector v in L s.t. the normalized norm of the corresponding element is prime
-    B = N*ceil(sqrt(2*Nx))
+    B = N*ceil(sqrt(p*Nx))
     vlist = []
     while len(vlist) == 0:
         vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_prime(ZZ(newN/(2*N))), num_vectors=num_vectors)
@@ -312,7 +312,7 @@ def EquivalentIdealsWithSameNormSmallN(I1, I2, N, num_vectors=10):
     L = IntegralLattice(Gram, L1.intersection(OxZ).basis())
 
     # find a short vector v in L s.t. the normalized norm of the corresponding element is prime
-    B = N*ceil(sqrt(2*Nx))
+    B = N*ceil(sqrt(p*Nx))
     vlist = []
     while len(vlist) == 0:
         vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_prime(ZZ(newN/(2*N))), num_vectors=num_vectors)
