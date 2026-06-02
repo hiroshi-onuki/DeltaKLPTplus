@@ -1,4 +1,5 @@
 from quaternion import *
+from attack import *
 
 proof.all(False)
 
@@ -23,8 +24,18 @@ print(f"Norm of Isk intersect Ichl is {factor(IskIchl.norm())}")
 assert IskIchl.left_order() == O0
 
 L, nu = deltaKLPTforSign(Icom, IskIchl, 2, 265*4, 2^255)
-beta = SmallGenerator(L)
+
 I = L + O0 * 2**(265*4)
 print(I.is_principal())
 
+O = L.right_order()
+Od = IskIchl.right_order()
+beta = O.isomorphism_to(Od, conjugator=True)
 
+Iall = IskIchl * beta.inverse() * L.conjugate() * beta
+print(Iall.is_principal())
+IskIchlIrsp = Iall + O0 * Nsk * Nchl * 2**(265*4)
+assert not IskIchlIrsp * B(1/2) in O0
+
+print(simple_pullback(IskIchlIrsp, Nsk, Nchl, 2**(265*4), 2**255))
+print(simulate_signing(IskIchlIrsp, Nsk, Nchl, 2**(265*4), 2**255))

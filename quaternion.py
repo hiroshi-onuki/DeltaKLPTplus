@@ -343,7 +343,7 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound):
     N = n1*n2
     NCD = None
     while NCD is None or N > norm_bound or kronecker(l**e, N) != kronecker(NCD, N):
-        J1, J2, _, beta2, newN = EquivalentIdealsWithSameNorm(J1, J2, N, 50)
+        J1, J2, _, beta2, newN = EquivalentIdealsWithSameNorm(J1, J2, N, 30)
         assert norm(J1) == norm(J2) == newN
         alpha2 = beta2*alpha2 / N
         N = newN
