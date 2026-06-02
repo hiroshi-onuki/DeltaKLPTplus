@@ -228,11 +228,12 @@ def EquivalentIdealsWithSameNorm(I1, I2, N):
     L = IntegralLattice(Gram, Lbasis)
 
     # short solution for alpha2 * x * bar(alpha1) = 0 mod N with gcd(norm(x), N) = 1
-    found = False
-    e = 0
-    while not found:
-        v, _, found = lattice.LatticeEnumeration(L, ceil(log(p*N, 2)/2) + e, condition=lambda newN: gcd(newN/2, N) == 1)
-        e += 1
+    B = ceil(sqrt(N))
+    vlist = []
+    while len(vlist) == 0:
+        vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: gcd(newN, N) == 1, num_vectors=10)
+        B *= 2
+    v = vlist[randint(0, len(vlist)-1)]
     x = sum(c * b for c, b in zip(v, O0.basis()))
     Nx = x.reduced_norm()
     assert alpha2 * x * alpha1.conjugate() in O0 * N
@@ -245,13 +246,14 @@ def EquivalentIdealsWithSameNorm(I1, I2, N):
     L = IntegralLattice(Gram, L1.intersection(OxZ).basis())
 
     # find a short vector v in L s.t. the normalized norm of the corresponding element is prime
-    found = False
-    e = 0
-    while not found:
-        v, newN, found = lattice.LatticeEnumeration(L, ceil(log(p*N**2*Nx, 2)/2) + e, condition=lambda newN: is_prime(ZZ(newN/(2*N))))
-        e += 1
+    B = N*ceil(sqrt(2*Nx))
+    vlist = []
+    while len(vlist) == 0:
+        vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_prime(ZZ(newN/(2*N))), num_vectors=10)
+        B *= 2
+    v = vlist[randint(0, len(vlist)-1)]
     beta1 = sum(c * b for c, b in zip(v, O0.basis()))
-    newN = ZZ(newN / (2*N))
+    newN = ZZ(beta1.reduced_norm() / N)
 
     assert beta1 in I1
     beta2 = x * beta1 * x.conjugate() / Nx
@@ -293,11 +295,12 @@ def EquivalentIdealsWithSameNormSmallN(I1, I2, N):
             break
     assert b0 is not None
     L = IntegralLattice(matrix([[1, 0], [0, 1]]), [b0, b1])
-    e = 0
-    found = False
-    while not found:
-        v, Nx, found = lattice.LatticeEnumeration(L, ceil(log(N, 2)/2) + e, condition=lambda newN: gcd(newN, N) == 1)
-        e += 1
+    B = ceil(sqrt(N))
+    vlist = []
+    while len(vlist) == 0:
+        vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: gcd(newN, N) == 1, num_vectors=10)
+        B *= 2
+    v = vlist[randint(0, len(vlist)-1)]
     x = v[0] + v[1]*qi
     assert x.reduced_norm() == Nx
     assert alpha2 * x * alpha1.conjugate() in O0 * N
@@ -309,13 +312,14 @@ def EquivalentIdealsWithSameNormSmallN(I1, I2, N):
     L = IntegralLattice(Gram, L1.intersection(OxZ).basis())
 
     # find a short vector v in L s.t. the normalized norm of the corresponding element is prime
-    found = False
-    e = 0
-    while not found:
-        v, newN, found = lattice.LatticeEnumeration(L, ceil(log(p*N**2*Nx, 2)/2) + e, condition=lambda newN: is_prime(ZZ(newN/(2*N))))
-        e += 1
+    B = N*ceil(sqrt(2*Nx))
+    vlist = []
+    while len(vlist) == 0:
+        vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_prime(ZZ(newN/(2*N))), num_vectors=10)
+        B *= 2
+    v = vlist[randint(0, len(vlist)-1)]
     beta1 = sum(c * b for c, b in zip(v, O0.basis()))
-    newN = ZZ(newN / (2*N))
+    newN = ZZ(beta1.reduced_norm() / N)
 
     assert beta1 in I1
     beta2 = x * beta1 * x.conjugate() / Nx
@@ -347,6 +351,7 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound):
         beta2 = SmallGenerator(J2)
         C, D = IdealModConstraint(O, qj, qk, beta2, beta1, N)
         NCD = p * (C**2 + D**2)
+        print(f"Trying N = {N}")
     assert J2 == EquivalentIdeal(IskIchl, alpha2)
     nu = StrongApproximation(O, N, C, D, l**e, condition=lambda nu: not nu*alpha2.conjugate()/(2*N) in O)
     assert beta2 * nu in J1

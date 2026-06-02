@@ -113,8 +113,8 @@ def MakeQuatraticForm(basis, quadratic_form):
             q[i, j] = (C[i, j] - sum(q[k, k] * q[k, i] * q[k, j] for k in range(i))) / q[i, i]
     return q
 
-# return alpha in L s.t. norm(alpha) < 2^a and condition(norm(alpha))
-def LatticeEnumeration(L, a, condition):
+# return list of vectors alpha in L s.t. norm(alpha) < B and condition(norm(alpha))
+def LatticeEnumeration(L, B, condition, num_vectors):
     red_basis = [vector(ZZ, b) for b in L.LLL().basis()]
     q = MakeQuatraticForm(red_basis, lambda x, y: x.inner_product(y))
 
@@ -123,19 +123,20 @@ def LatticeEnumeration(L, a, condition):
     U = [0] * n
     upper = [ZZ(0)] * n
     x = [ZZ(0)] * n
-    S[-1] = ZZ(2**a)
+    S[-1] = ZZ(B)
 
     i = n - 1
     Z = sqrt(S[i] / q[i, i])
     upper[i] = ZZ(floor(Z - U[i]))
     x[i] = ZZ(ceil(-Z - U[i])) - 1
 
+    ret = []
     while True:
         x[i] += 1
         while i < n and x[i] > upper[i]:
             i += 1
             if i == n:
-                return vector(ZZ, [0] * len(red_basis[0])), ZZ(0), False
+                return ret
             x[i] += 1
 
         if i > 0:
@@ -154,6 +155,8 @@ def LatticeEnumeration(L, a, condition):
             alpha = sum((coeffs[j] * red_basis[j] for j in range(n)), vector(ZZ, [0] * len(red_basis[0])))
             newN = ZZ(alpha.inner_product(alpha))
             if condition(newN):
-                return alpha, newN, True
+                ret.append(alpha)
+                if len(ret) >= num_vectors:
+                    return ret
         else:
-            return vector(ZZ, [0] * len(red_basis[0])), ZZ(0), False
+            return ret
