@@ -190,7 +190,7 @@ def RandomFixedNormIdeal(O0, N):
 
 # Given two O0-ideals I1, I2 with the same norm N,
 # return beta1 in I1 and beta2 in I2 s.t. qI1(beta1) = qI2(beta2) approx p^(3/4) * N^(1/4)
-def EquivalentIdealsWithSameNorm(I1, I2, N):
+def EquivalentIdealsWithSameNorm(I1, I2, N, num_vectors=10):
     assert I1.left_order() == I2.left_order()
     assert norm(I1) == norm(I2) == N
     O0 = I1.left_order()
@@ -231,7 +231,7 @@ def EquivalentIdealsWithSameNorm(I1, I2, N):
     B = ceil(sqrt(N))
     vlist = []
     while len(vlist) == 0:
-        vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: gcd(newN, N) == 1, num_vectors=10)
+        vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: gcd(newN, N) == 1, num_vectors=num_vectors)
         B *= 2
     v = vlist[randint(0, len(vlist)-1)]
     x = sum(c * b for c, b in zip(v, O0.basis()))
@@ -249,7 +249,7 @@ def EquivalentIdealsWithSameNorm(I1, I2, N):
     B = N*ceil(sqrt(2*Nx))
     vlist = []
     while len(vlist) == 0:
-        vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_prime(ZZ(newN/(2*N))), num_vectors=10)
+        vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_prime(ZZ(newN/(2*N))), num_vectors=num_vectors)
         B *= 2
     v = vlist[randint(0, len(vlist)-1)]
     beta1 = sum(c * b for c, b in zip(v, O0.basis()))
@@ -263,7 +263,7 @@ def EquivalentIdealsWithSameNorm(I1, I2, N):
 
 # Given two O0-ideals I1, I2 with the same norm N,
 # return beta1 in I1 and beta2 in I2 s.t. qI1(beta1) = qI2(beta2) approx p^(1/2) * N^(1/2)
-def EquivalentIdealsWithSameNormSmallN(I1, I2, N):
+def EquivalentIdealsWithSameNormSmallN(I1, I2, N, num_vectors=10):
     assert I1.left_order() == I2.left_order()
     assert norm(I1) == norm(I2) == N
     O0 = I1.left_order()
@@ -298,7 +298,7 @@ def EquivalentIdealsWithSameNormSmallN(I1, I2, N):
     B = ceil(sqrt(N))
     vlist = []
     while len(vlist) == 0:
-        vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: gcd(newN, N) == 1, num_vectors=10)
+        vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: gcd(newN, N) == 1, num_vectors=num_vectors)
         B *= 2
     v = vlist[randint(0, len(vlist)-1)]
     x = v[0] + v[1]*qi
@@ -315,7 +315,7 @@ def EquivalentIdealsWithSameNormSmallN(I1, I2, N):
     B = N*ceil(sqrt(2*Nx))
     vlist = []
     while len(vlist) == 0:
-        vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_prime(ZZ(newN/(2*N))), num_vectors=10)
+        vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_prime(ZZ(newN/(2*N))), num_vectors=num_vectors)
         B *= 2
     v = vlist[randint(0, len(vlist)-1)]
     beta1 = sum(c * b for c, b in zip(v, O0.basis()))
@@ -343,7 +343,7 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound):
     N = n1*n2
     NCD = None
     while NCD is None or N > norm_bound or kronecker(l**e, N) != kronecker(NCD, N):
-        J1, J2, _, beta2, newN = EquivalentIdealsWithSameNorm(J1, J2, N)
+        J1, J2, _, beta2, newN = EquivalentIdealsWithSameNorm(J1, J2, N, 50)
         assert norm(J1) == norm(J2) == newN
         alpha2 = beta2*alpha2 / N
         N = newN
@@ -351,7 +351,6 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound):
         beta2 = SmallGenerator(J2)
         C, D = IdealModConstraint(O, qj, qk, beta2, beta1, N)
         NCD = p * (C**2 + D**2)
-        print(f"Trying N = {N}")
     assert J2 == EquivalentIdeal(IskIchl, alpha2)
     nu = StrongApproximation(O, N, C, D, l**e, condition=lambda nu: not nu*alpha2.conjugate()/(2*N) in O)
     assert beta2 * nu in J1
