@@ -15,7 +15,6 @@ from sage.all import (
     matrix,
     CRT,
     IntegralLattice,
-    log,
 )
 from sage.rings.factorint import factor_trial_division
 import lattice
@@ -242,7 +241,7 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, num_vectors=10):
     # construct the lattice L = I1 \cap (O0 * x + Z)
     L1 = IntegralLattice(Gram, [vector(b) * Qinv for b in I1.basis()])
     Ox = IntegralLattice(Gram, [vector(b*x) * Qinv for b in O0.basis()])
-    OxZ = Ox.overlattice([vector([1,0,0,0])])
+    OxZ = Ox.overlattice([vector(O0(1)) * Qinv])
     L = IntegralLattice(Gram, L1.intersection(OxZ).basis())
 
     # find a short vector v in L s.t. the normalized norm of the corresponding element is prime
@@ -343,7 +342,7 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound):
     N = n1*n2
     NCD = None
     while NCD is None or N > norm_bound or kronecker(l**e, N) != kronecker(NCD, N):
-        J1, J2, _, beta2, newN = EquivalentIdealsWithSameNorm(J1, J2, N, 30)
+        J1, J2, _, beta2, newN = EquivalentIdealsWithSameNorm(J1, J2, N, 100)
         assert norm(J1) == norm(J2) == newN
         alpha2 = beta2*alpha2 / N
         N = newN
