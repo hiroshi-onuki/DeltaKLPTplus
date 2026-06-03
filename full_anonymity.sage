@@ -50,10 +50,10 @@ def make_p(lam):
         p = 2**(2*lam) * f - 1
     return p
 
-lam = 100
+lam = 5
 p = make_p(lam)
 print(f"Using p = {p}")
 IskIchlIrsp, Nsk, Nchl, Nrsp, N_bound = make_instance(p, lam)
-success_simple, success_signing = success_rate(IskIchlIrsp, Nsk, Nchl, Nrsp, N_bound)
-print(f"Success rate of simple pullback: {success_simple:.2%}")
-print(f"Success rate of signing simulation: {success_signing:.2%}")
+success_simple, success_signing = success_rate(IskIchlIrsp, Nsk, Nchl, Nrsp, N_bound, 1000)
+print(f"Success rate of simple pullback: {success_simple}")
+print(f"Success rate of signing simulation: {success_signing}")

@@ -43,21 +43,37 @@ def simulate_signing(IskIchlIrsp, Nsk, Nchl, Nrsp, N_bound):
     Icom = EquivalentIdeal(IskIchlIrsp, reduced_basis[0])
 
     # do as the same as deltaKLPTforSign
-    n1 = random_prime(ceil(p**(0.7)))
-    n2 = random_prime(ceil(p**(2.8)))
-    J1, _ = KLPT(Icom, n1, n2)
-    J2, alpha2 = KLPT(IskIchl, n1, n2)
-    N = n1*n2
-    NCD = None
-    while NCD is None or N > N_bound or kronecker(Nrsp, N) != kronecker(NCD, N):
-        J1, J2, _, beta2, newN = EquivalentIdealsWithSameNorm(J1, J2, N, 100)
-        alpha2 = beta2*alpha2 / N
-        N = newN
-        beta1 = SmallGenerator(J1)
-        beta2 = SmallGenerator(J2)
-        C, D = IdealModConstraint(O0, qj, qk, beta2, beta1, N)
-        NCD = p * (C**2 + D**2)
-
+    found = False
+    while not found:
+        B1 = ceil(p**(0.7))
+        B2 = ceil(p**(2.8))
+        found = False
+        while not found:
+            n1 = random_prime(B1)
+            n2 = random_prime(B2)
+            if n1 < p**(0.5) or n2 < p**(2.5):
+                continue
+            J1, _, found = KLPT(Icom, n1, n2)
+            J2, alpha2, found2 = KLPT(IskIchl, n1, n2)
+            found = found and found2
+            B1 *= 2
+            B2 *= 2
+        assert norm(J1) == norm(J2) == n1*n2
+        N = n1*n2
+        NCD = None
+        cnt = 0
+        while cnt < 10 and (NCD is None or N > N_bound or kronecker(Nrsp, N) != kronecker(NCD, N)):
+            J1, J2, _, beta2, newN = EquivalentIdealsWithSameNorm(J1, J2, N, 100)
+            alpha2 = beta2*alpha2 / N
+            N = newN
+            beta1 = SmallGenerator(J1)
+            beta2 = SmallGenerator(J2)
+            cnt += 1
+            C, D = IdealModConstraint(O0, qj, qk, beta2, beta1, N)
+            NCD = p * (C**2 + D**2)
+        if N > N_bound or kronecker(Nrsp, N) != kronecker(NCD, N):
+            continue
+        _, found = StrongApproximation(O0, N, C, D, Nrsp, 100, condition=lambda nu: not nu*alpha2.conjugate()/(2*N) in O0)
     J2Irsp = IskIchlIrsp * (alpha2.conjugate() / (Nsk * Nchl))
     Irsp_pullback = J2Irsp + O0 * Nrsp
     return Irsp_pullback.is_principal()

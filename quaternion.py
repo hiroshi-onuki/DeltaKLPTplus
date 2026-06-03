@@ -31,7 +31,7 @@ def SumOf2Squares(n):
     factor = factor_trial_division(n, 100)
     if factor and is_prime(factor[-1][0]):
         try:
-            x, y = sum_of_k_squares(2, n)
+            x, y = sum_of_k_squares(2, ZZ(n))
             return x, y
         except ValueError:
             return None, None
@@ -139,8 +139,8 @@ def StrongApproximation(O0, N, C, D, nrd, max_cnt=1000, condition=lambda nu: Tru
             nu = O0([N*a, N*b, lam*C + Nc, lam*D + Nd])
             assert nu.reduced_norm() == nrd
             if condition(nu):
-                return nu
-    raise ValueError("StrongApproximation: no solution found after max_cnt tries")
+                return nu, True
+    return None, False
 
 # return J ~ I with nrd(J) is n1*n2
 def KLPT(I, n1, n2):
@@ -157,10 +157,12 @@ def KLPT(I, n1, n2):
         gamma = FullRepresentInteger(L.left_order(), n1 * N)
         C, D = IdealModConstraint(L.left_order(), qj, qk, gamma, beta, N)
         pCD = p * (C**2 + D**2)
-    nu = StrongApproximation(L.left_order(), N, C, D, n2)
+    nu, found = StrongApproximation(L.left_order(), N, C, D, n2)
+    if not found:
+        return None, None, False
     assert gamma * nu in L
     assert gamma * nu * alpha / N in I
-    return EquivalentIdeal(L, gamma * nu), gamma * nu * alpha / N
+    return EquivalentIdeal(L, gamma * nu), gamma * nu * alpha / N, True
 
 # return a left O0-ideal of norm N
 # Algorithm 3 in https://eprint.iacr.org/2024/760.pdf
@@ -326,32 +328,48 @@ def EquivalentIdealsWithSameNormSmallN(I1, I2, N, num_vectors=10):
 
     return EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2), newN
 
-def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound):
+def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound, EISN_loop_bound=10, EISN_vec_bound=100, SA_loop_bound=100):
     assert Icom.left_order() == IskIchl.left_order()
     _, _, qj, qk = Icom.quaternion_algebra().basis()
     O = Icom.left_order()
     p = Icom.quaternion_algebra().discriminant()
 
-    n1 = random_prime(ceil(p**(0.7)))
-    n2 = random_prime(ceil(p**(2.8)))
-    J1, _ = KLPT(Icom, n1, n2)
-    J2, alpha2 = KLPT(IskIchl, n1, n2)
-    assert norm(J1) == norm(J2) == n1*n2
+    while True:
+        B1 = ceil(p**(0.7))
+        B2 = ceil(p**(2.8))
+        found = False
+        while not found:
+            n1 = random_prime(B1)
+            n2 = random_prime(B2)
+            if n1 < p**(0.5) or n2 < p**(2.5):
+                continue
+            J1, _, found = KLPT(Icom, n1, n2)
+            J2, alpha2, found2 = KLPT(IskIchl, n1, n2)
+            found = found and found2
+            B1 *= 2
+            B2 *= 2
+        assert norm(J1) == norm(J2) == n1*n2
 
-    C, D = 0, 0
-    N = n1*n2
-    NCD = None
-    while NCD is None or N > norm_bound or kronecker(l**e, N) != kronecker(NCD, N):
-        J1, J2, _, beta2, newN = EquivalentIdealsWithSameNorm(J1, J2, N, 100)
-        assert norm(J1) == norm(J2) == newN
-        alpha2 = beta2*alpha2 / N
-        N = newN
-        beta1 = SmallGenerator(J1)
-        beta2 = SmallGenerator(J2)
-        C, D = IdealModConstraint(O, qj, qk, beta2, beta1, N)
-        NCD = p * (C**2 + D**2)
-    assert J2 == EquivalentIdeal(IskIchl, alpha2)
-    nu = StrongApproximation(O, N, C, D, l**e, condition=lambda nu: not nu*alpha2.conjugate()/(2*N) in O)
-    assert beta2 * nu in J1
-    assert J1.intersection(O*nu) == J2 * nu
-    return J1.intersection(O*nu), nu
+        C, D = 0, 0
+        N = n1*n2
+        NCD = None
+        cnt = 0
+        while cnt < EISN_loop_bound and (NCD is None or N > norm_bound or kronecker(l**e, N) != kronecker(NCD, N)):
+            J1, J2, _, beta2, newN = EquivalentIdealsWithSameNorm(J1, J2, N, EISN_vec_bound)
+            assert norm(J1) == norm(J2) == newN
+            alpha2 = beta2*alpha2 / N
+            N = newN
+            beta1 = SmallGenerator(J1)
+            beta2 = SmallGenerator(J2)
+            C, D = IdealModConstraint(O, qj, qk, beta2, beta1, N)
+            NCD = p * (C**2 + D**2)
+            cnt += 1
+        if N > norm_bound or kronecker(l**e, N) != kronecker(NCD, N):
+            continue
+        assert J2 == EquivalentIdeal(IskIchl, alpha2)
+        nu, found = StrongApproximation(O, N, C, D, l**e, SA_loop_bound, condition=lambda nu: not nu*alpha2.conjugate()/(2*N) in O)
+        if not found:
+            continue
+        assert beta2 * nu in J1
+        assert J1.intersection(O*nu) == J2 * nu
+        return J1.intersection(O*nu), nu
