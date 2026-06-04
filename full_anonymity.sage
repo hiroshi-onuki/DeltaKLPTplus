@@ -55,7 +55,7 @@ p = make_p(lam)
 print(f"Using p = {p}")
 O0, IskIchlIrsp, Nsk, Nchl, Nrsp, N_bound = make_instance(p, lam)
 
-n_trials = 1000
+n_trials = 10000
 
 # attack for actual signing
 success_simple, success_signing = success_num(IskIchlIrsp, Nsk, Nchl, Nrsp, N_bound, n_trials)
