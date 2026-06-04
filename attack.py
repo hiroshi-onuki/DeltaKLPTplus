@@ -43,21 +43,17 @@ def simulate_signing(IskIchlIrsp, Nsk, Nchl, Nrsp, N_bound):
     Icom = EquivalentIdeal(IskIchlIrsp, reduced_basis[0])
 
     # do as the same as deltaKLPTforSign
+    B1 = ceil(p**(0.5))
+    B2 = ceil(p**(2.8))
     found = False
     while not found:
-        B1 = ceil(p**(0.7))
-        B2 = ceil(p**(2.8))
         found = False
         while not found:
-            n1 = random_prime(B1)
-            n2 = random_prime(B2)
-            if n1 < p**(0.5) or n2 < p**(2.5):
-                continue
+            n1 = random_prime(2**40*B1, lbound=B1)
+            n2 = random_prime(2**40*B2, lbound=B2)
             J1, _, found = KLPT(Icom, n1, n2)
             J2, alpha2, found2 = KLPT(IskIchl, n1, n2)
             found = found and found2
-            B1 *= 2
-            B2 *= 2
         assert norm(J1) == norm(J2) == n1*n2
         N = n1*n2
         NCD = None

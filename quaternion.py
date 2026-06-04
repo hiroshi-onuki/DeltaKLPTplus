@@ -15,6 +15,7 @@ from sage.all import (
     matrix,
     CRT,
     IntegralLattice,
+    log,
 )
 from sage.rings.factorint import factor_trial_division
 import lattice
@@ -334,20 +335,18 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound, EISN_loop_bound=10, EISN_v
     O = Icom.left_order()
     p = Icom.quaternion_algebra().discriminant()
 
+    # bound for the original KLPT
+    B1 = ceil(p**(0.5))
+    B2 = ceil(p**(2.8))
+
     while True:
-        B1 = ceil(p**(0.7))
-        B2 = ceil(p**(2.8))
         found = False
         while not found:
-            n1 = random_prime(B1)
-            n2 = random_prime(B2)
-            if n1 < p**(0.5) or n2 < p**(2.5):
-                continue
+            n1 = random_prime(2**40*B1, lbound=B1)
+            n2 = random_prime(2**40*B2, lbound=B2)
             J1, _, found = KLPT(Icom, n1, n2)
             J2, alpha2, found2 = KLPT(IskIchl, n1, n2)
             found = found and found2
-            B1 *= 2
-            B2 *= 2
         assert norm(J1) == norm(J2) == n1*n2
 
         C, D = 0, 0
