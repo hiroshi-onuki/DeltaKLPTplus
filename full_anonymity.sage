@@ -30,14 +30,17 @@ def make_instance(p, lam):
     Ichl, _ = RandomFixedNormIdeal(O0, Nchl)
     IskIchl = Isk.intersection(Ichl)
 
-    L, nu = deltaKLPTforSign(Icom, IskIchl, 2, exp_rsp, Nbound)
+    L, _ = deltaKLPTforSign(Icom, IskIchl, 2, exp_rsp, Nbound)
     I = L + O0 * 2**exp_rsp
     assert I.is_principal()
     O = L.right_order()
     Od = IskIchl.right_order()
     beta = O.isomorphism_to(Od, conjugator=True)
     Iall = IskIchl * beta.inverse() * L.conjugate() * beta
-    assert Iall.is_principal()
+    n = norm(Iall) / beta.reduced_norm()
+    beta *= ZZ(sqrt(n))     # scale beta so that norm(Iall) = norm(beta)
+    assert Iall == O0 * beta
+    assert beta/2 not in O0
     IskIchlIrsp = Iall + O0 * Nsk * Nchl * 2**exp_rsp
     assert not IskIchlIrsp * B(1/2) in O0
     return O0, IskIchlIrsp, Nsk, Nchl, 2**exp_rsp, Nbound
@@ -53,6 +56,7 @@ def make_p(lam):
 lam = 5
 p = make_p(lam)
 print(f"Using p = {p}")
+
 O0, IskIchlIrsp, Nsk, Nchl, Nrsp, N_bound = make_instance(p, lam)
 
 n_trials = 10000

@@ -4,7 +4,7 @@ from sage.all import (
     sqrt,
     is_prime,
     randint,
-    random_prime,
+    valuation,
     norm,
 )
 
@@ -38,38 +38,29 @@ def simulate_signing(IskIchlIrsp, Nsk, Nchl, Nrsp, N_bound):
     p = IskIchlIrsp.quaternion_algebra().discriminant()
     IskIchl = IskIchlIrsp + O0 * Nsk*Nchl
 
-    # set Icom as a short ideal equivalent to IskIchlIrsp
+    # set Icom as an ideal with prime norm equivalent to IskIchlIrsp
     reduced_basis = LLLBasis(IskIchlIrsp)
-    Icom = EquivalentIdeal(IskIchlIrsp, reduced_basis[0])
+    Icom, alpha, Ncom = EquivalentRandomPrimeIdeal(IskIchlIrsp, lambda N: gcd(N, norm(IskIchlIrsp)) == 1)
+    IcomIrsp = O0 * alpha.conjugate() + O0 * Ncom * Nrsp
+    assert IcomIrsp < Icom
 
-    # do as the same as deltaKLPTforSign
-    B1 = ceil(p**(0.5))
-    B2 = ceil(p**(2.8))
-    found = False
-    while not found:
-        found = False
-        while not found:
-            n1 = random_prime(2**40*B1, lbound=B1)
-            n2 = random_prime(2**40*B2, lbound=B2)
-            J1, _, found = KLPT(Icom, n1, n2)
-            J2, alpha2, found2 = KLPT(IskIchl, n1, n2)
-            found = found and found2
-        assert norm(J1) == norm(J2) == n1*n2
-        N = n1*n2
-        NCD = None
-        cnt = 0
-        while cnt < 10 and (NCD is None or N > N_bound or kronecker(Nrsp, N) != kronecker(NCD, N)):
-            J1, J2, _, beta2, newN = EquivalentIdealsWithSameNorm(J1, J2, N, 100)
-            alpha2 = beta2*alpha2 / N
-            N = newN
-            beta1 = SmallGenerator(J1)
-            beta2 = SmallGenerator(J2)
-            cnt += 1
-            C, D = IdealModConstraint(O0, qj, qk, beta2, beta1, N)
-            NCD = p * (C**2 + D**2)
-        if N > N_bound or kronecker(Nrsp, N) != kronecker(NCD, N):
-            continue
-        _, found = StrongApproximation(O0, N, C, D, Nrsp, 100, condition=lambda nu: not nu*alpha2.conjugate()/(2*N) in O0)
-    J2Irsp = IskIchlIrsp * (alpha2.conjugate() / (Nsk * Nchl))
-    Irsp_pullback = J2Irsp + O0 * Nrsp
+    # call delta-KLPT
+    e_rsp = valuation(Nrsp, 2)
+    assert Nrsp == 2**e_rsp
+    L, _ = deltaKLPTforSign(Icom, IskIchl, 2, e_rsp, N_bound)
+
+    # compute the pullback of Irsp
+    N = norm(L) / Nrsp
+    Icom_d = L + O0 * N
+    Ocom = Icom.right_order()
+    Ocom_d = Icom_d.right_order()
+    alpha = Ocom_d.isomorphism_to(Ocom, conjugator=True)
+    I = Icom * alpha.inverse() * Icom_d.conjugate() * alpha
+    assert I.is_principal()
+    assert I == O0 * alpha
+    assert Icom_d == EquivalentIdeal(Icom, alpha)
+    IcomIrsp = IcomIrsp * (alpha.conjugate() / Ncom)
+    assert IcomIrsp < Icom_d
+    Irsp_pullback = IcomIrsp + O0 * Nrsp
     return Irsp_pullback.is_principal()
+

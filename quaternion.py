@@ -366,7 +366,17 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound, EISN_loop_bound=10, EISN_v
         if N > norm_bound or kronecker(l**e, N) != kronecker(NCD, N):
             continue
         assert J2 == EquivalentIdeal(IskIchl, alpha2)
-        nu, found = StrongApproximation(O, N, C, D, l**e, SA_loop_bound, condition=lambda nu: not nu*alpha2.conjugate()/(2*N) in O)
+        
+        def is_cyclic(nu):
+            if nu / 2 in O:
+                return False
+            O1 = J1.intersection(O*nu).right_order()
+            O2 = J2.right_order()
+            gamma = O2.isomorphism_to(O1, conjugator=True)
+            assert J1.intersection(O*nu) * gamma.inverse() * J2.conjugate() * gamma == O * gamma
+            return (alpha2.conjugate() * gamma) / 2 not in O
+
+        nu, found = StrongApproximation(O, N, C, D, l**e, SA_loop_bound, condition=is_cyclic)
         if not found:
             continue
         assert beta2 * nu in J1
