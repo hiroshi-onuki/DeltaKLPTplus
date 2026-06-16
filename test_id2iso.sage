@@ -1,9 +1,13 @@
 from id2iso import Qlapoti
 from quaternion import RandomFixedNormIdeal
+from special_curve import SpecialSuperSingularCurve
 
 e = 248
 f = 5
 p = 2^e * f - 1  
+
+E = SpecialSuperSingularCurve(p, e, f)
+
 Bpinf.<qi, qj, qk> = QuaternionAlgebra(-1, -p)
 O0 = Bpinf.maximal_order(order_basis=(Bpinf(1), qi, (qi + qj)/2, (1 + qk)/2))
 N = random_prime(10*p)
