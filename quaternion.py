@@ -133,10 +133,9 @@ def StrongApproximation(O0, N, C, D, nrd, max_cnt=1000, condition=lambda nu: Tru
     b1 = vector(ZZ, [0, N**2])
     beta1, beta0 = lattice.ShortBasisDim2Euclidean(b0, b1)
     target = vector(ZZ, [-lam*C - N*c, -lam*D - N*d])
-    close = lattice.ClosestVectorDim2Euclidean(beta1, beta0, target)
     bound = ZZ(floor(nrd / p))
 
-    for v in lattice.EnumerateCloseVectorsDim2Euclidean(beta1, beta0, target, close, max_cnt, bound):
+    for v in lattice.EnumerateCloseVectorsDim2Euclidean(beta1, beta0, target, max_cnt, bound):
         Nc = N*c + v[0]
         Nd = N*d + v[1]
 
