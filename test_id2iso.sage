@@ -4,11 +4,11 @@ from quaternion import RandomFixedNormIdeal
 e = 248
 f = 5
 p = 2^e * f - 1  
-D = 2^(e-2)
-Bpinf.<ii, jj, kk> = QuaternionAlgebra(-1, -p)
-O0 = Bpinf.maximal_order(order_basis=(Bpinf(1), ii, (ii + jj)/2, (1 + kk)/2))
+Bpinf.<qi, qj, qk> = QuaternionAlgebra(-1, -p)
+O0 = Bpinf.maximal_order(order_basis=(Bpinf(1), qi, (qi + qj)/2, (1 + qk)/2))
 N = random_prime(10*p)
 I, _ = RandomFixedNormIdeal(O0, N)
+print(f"Generated ideal I with norm {N}")
 
-I1, I2 = Qlapoti(I, D)
-print(f"Found ideals I1, I2 with norm {norm(I1)}, {norm(I2)}")
+beta1, beta2 = Qlapoti(I, e-2)
+print(f"Found elements in I with norms {beta1.reduced_norm()}, {beta2.reduced_norm()}")
