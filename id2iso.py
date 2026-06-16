@@ -5,11 +5,10 @@ from sage.all import (
     ZZ,
     log,
 )
-
+from sage.modules.free_module_integer import IntegerLattice
 from theta_structures.couple_point import CouplePoint
 from theta_isogenies.product_isogeny import EllipticProductIsogeny
 from quaternion import SmallestEquivalentIdeal, SmallGenerator, SumOf2Squares
-from lattice import ClosestVectorDim2Euclidean
 
 def Qlapoti(I, N, max_tries=1000):
     _, qi, _, _ = I.quaternion_algebra().basis()
@@ -36,10 +35,10 @@ def Qlapoti(I, N, max_tries=1000):
             b1 = vector([1, -2*aa * binv])
             b2 = vector([0, n])
             target = vector([0, (N - 2*r) * binv % n])
-        v = ClosestVectorDim2Euclidean(b1, b2, target)
+        L = IntegerLattice([b1, b2])
+        v = L.approximate_closest_vector(target)
         v = target - v
         s, t = v
-        print(float(log(s**2 + t**2, 2)), float(log(n, 2)))
         assert (2*aa * s + 2*ba * t - (N - 2*r)) % n == 0
         z = 2 * (N - 2*r - 2*aa*s - 2*ba*t) / n - s**2 - t**2
         if z < 0:
@@ -52,10 +51,8 @@ def Qlapoti(I, N, max_tries=1000):
             continue
         if z % 4 == 3:
             continue
-        try:
-            print(f"Found suitable s, t, z = {s}, {t}, {z}")
-            z0, z1 = SumOf2Squares(z)
-        except:
+        z0, z1 = SumOf2Squares(z)
+        if z0 is None or z1 is None:
             continue
         if not z0 % 2 == s % 2:
             z0, z1 = z1, z0
@@ -63,10 +60,10 @@ def Qlapoti(I, N, max_tries=1000):
         b1 = (z1 + t) / 2
         a2 = s - a1
         b2 = t - b1
-        beta1 = n*(a1 + b1 * ii) + alpha
-        beta2 = n*(a2 + b2 * ii) + alpha
-        I1 = O0.left_ideal([b * beta1.conjugate() / n for b in I.basis()])
-        I2 = O0.left_ideal([b * beta2.conjugate() / n for b in I.basis()])
+        beta1 = n*(a1 + b1 * qi) + alpha
+        beta2 = n*(a2 + b2 * qi) + alpha
+        I1 = O.left_ideal([b * beta1.conjugate() / n for b in I.basis()])
+        I2 = O.left_ideal([b * beta2.conjugate() / n for b in I.basis()])
         assert norm(I1) + norm(I2) == N
         return I1, I2
     raise ValueError("No suitable ideals found")
