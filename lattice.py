@@ -7,8 +7,8 @@ from sage.all import (
     ceil,
     sqrt,
     matrix,
-    factor,
 )
+from sage.modules.free_module_integer import IntegerLattice
 
 def EuclideanNorm(v):
     v = vector(ZZ, v)
@@ -32,18 +32,11 @@ def ShortBasisDim2Euclidean(b0, b1):
         beta0 = gamma
     return beta1, beta0
 
-def ClosestVectorDim2Euclidean(beta1, beta0, t):
-    beta1, beta0, t = vector(ZZ, beta1), vector(ZZ, beta0), vector(ZZ, t)
-    mu1 = EuclideanNorm(beta1)*beta0 - beta0.dot_product(beta1)*beta1
-    r0 = ZZ(floor(mu1.dot_product(t)*EuclideanNorm(beta1) / EuclideanNorm(mu1) + ZZ(1)/ZZ(2)))
-    residual = t - r0*beta0
-    r1 = ZZ(floor(beta1.dot_product(residual) / EuclideanNorm(beta1) + ZZ(1)/ZZ(2)))
-    return t - (residual - r1*beta1)
-
-def EnumerateCloseVectorsDim2Euclidean(b0, b1, t, close, m, B):
+def EnumerateCloseVectorsDim2Euclidean(b0, b1, t, m, B):
     b0, b1 = vector(ZZ, b0), vector(ZZ, b1)
     t = vector(ZZ, t)
-    close = vector(ZZ, close)
+    L = IntegerLattice([b0, b1])
+    close = L.approximate_closest_vector(t)
     m = ZZ(m)
     B = ZZ(B)
     if m <= 0:
