@@ -1,4 +1,4 @@
-from lattice import EnumerateCloseVectorsDim2Euclidean
+from lattice import EnumerateCloseVectorsDim2Euclidean, ShortBasisDim2Euclidean
 from sage.all import (
     norm,
     vector,
@@ -6,11 +6,9 @@ from sage.all import (
     ZZ,
     ceil,
 )
-from sage.modules.free_module_integer import IntegerLattice
 from theta_structures.couple_point import CouplePoint
 from theta_isogenies.product_isogeny import EllipticProductIsogeny
 from quaternion import SmallestEquivalentIdeal, SmallGenerator, SumOf2Squares
-from lattice import EnumerateCloseVectorsDim2Euclidean
 
 def Qlapoti(I, e, max_tries=10000):
     _, qi, _, _ = I.quaternion_algebra().basis()
@@ -38,9 +36,8 @@ def Qlapoti(I, e, max_tries=10000):
             b1 = vector([1, -2*aa * binv])
             b2 = vector([0, n])
             target = vector([0, (N - 2*r) * binv % n])
-        L = IntegerLattice([b1, b2])
-        vs = EnumerateCloseVectorsDim2Euclidean(b1, b2, target, 100, ceil(2 * (N - 2*r) / n))
-        print(f"Trying alpha with norm {alpha.reduced_norm()}, found {len(vs)} close vectors")
+        rb1, rb2 = ShortBasisDim2Euclidean(b1, b2)
+        vs = EnumerateCloseVectorsDim2Euclidean(rb1, rb2, target, 100, ceil(2 * (N - 2*r) / n))
         for v in vs:
             v = target - v
             s, t = v
