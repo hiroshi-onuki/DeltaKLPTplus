@@ -38,7 +38,7 @@ def Qlapoti(I, e, max_tries=10000):
             b2 = vector([0, n])
             target = vector([0, (N - 2*r) * binv % n])
         rb1, rb2 = ShortBasisDim2Euclidean(b1, b2)
-        vs = EnumerateCloseVectorsDim2Euclidean(rb1, rb2, target, 100, ceil(2 * (N - 2*r) / n))
+        vs = EnumerateCloseVectorsDim2Euclidean(rb1, rb2, target, 10000, ceil(2 * (N - 2*r) / n))
         for v in vs:
             v = target - v
             s, t = v
@@ -67,7 +67,7 @@ def Qlapoti(I, e, max_tries=10000):
             beta2 = n*(a2 + b2 * qi) + alpha
             assert beta1.reduced_norm() + beta2.reduced_norm() == N*n
 
-            if beta1.reduced_norm() % 2 == 0:
+            if beta1.reduced_norm() / n % 2 == 0:
                 continue
             gamma = beta2*beta1.conjugate() / n
             v_gamma = vector(gamma) * O.basis_matrix().inverse()
@@ -98,22 +98,14 @@ def IdealToIsogeny(E0withEnd, I):
     Phi = EllipticProductIsogeny((K1, K2), e-2)
     image1 = Phi(CouplePoint(E0withEnd.P, E0(0)))
     image2 = Phi(CouplePoint(E0withEnd.Q, E0(0)))
+    image_sum = Phi(CouplePoint(E0withEnd.P + E0withEnd.Q, E0(0)))
 
-    Pim, Qim = image1[0], image2[0]
-    exp = (E0withEnd.p**2 - 1) / 2**e
-    tPimQim = tate_pairing_pari(Pim, Qim, 2**e)**exp
-
-    # for check
-    ePQ = E0withEnd.P.weil_pairing(E0withEnd.Q, 2**e)
-    ePimQim = Pim.weil_pairing(Qim, 2**e)
-    assert ePimQim == ePQ**d1 or ePimQim == ePQ**d2
-
-    if tPimQim == E0withEnd.tate_pairing_PQ**(d1*exp):
-        return Phi.codomain()[0], Pim, Qim
-    else:
-        Pim, Qim = image2[1], image1[1]
+    for idx in range(2):
+        Pim, Qim, PQim = image1[idx], image2[idx], image_sum[idx]
+        if Pim + Qim != PQim:
+            Qim = -Qim
+        exp = (E0withEnd.p**2 - 1) / 2**e
         tPimQim = tate_pairing_pari(Pim, Qim, 2**e)**exp
-        assert tPimQim == E0withEnd.tate_pairing_PQ**(d1*exp)
-        return Phi.codomain()[1], Pim, Qim
-
+        if tPimQim == E0withEnd.tate_pairing_PQ**d1:
+            return Phi.codomain()[idx], Pim, Qim
 

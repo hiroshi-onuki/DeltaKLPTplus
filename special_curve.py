@@ -61,7 +61,7 @@ class SpecialSuperSingularCurve:
         Q = restrict_point(2*Qext)
         self.P = P
         self.Q = Q
-        tPQ = tate_pairing_pari(P, Q, 2**e)
+        tPQ = tate_pairing_pari(P, Q, 2**e)**((p**2 - 1) // 2**e)
         self.tate_pairing_PQ = tPQ
         
         # The action of qi
