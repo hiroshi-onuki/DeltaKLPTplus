@@ -1,11 +1,13 @@
 from sage.all import (
-    EllipticCurve,
     GF,
+    ZZ,
+    QuaternionAlgebra,
+    EllipticCurve,
     PolynomialRing,
     is_square,
-    discrete_log,
+    matrix,
 )
-from utilities import discrete_log
+from utilities.discrete_log import BiDLP
 
 class SpecialSuperSingularCurve:
     def __init__(self, p, e, f):
@@ -18,33 +20,68 @@ class SpecialSuperSingularCurve:
         Fpx = PolynomialRing(GF(p), 'x')
         x = Fpx.gen()
         self.Fp2 = GF(p**2, modulus=x**2 + 1, names='i')
-        self.E = EllipticCurve(self.Fp2, [1, 0]) # y^2 = x^3 + x
+        i = self.Fp2.gen()
+        assert i**2 == -1
+        E = EllipticCurve(self.Fp2, [1, 0]) # y^2 = x^3 + x
+        self.E = E
+        B = QuaternionAlgebra(-1, -p)
+        _, qi, qj, qk = B.basis()
+        assert qi**2 == -1 and qj**2 == -p and qk == qi*qj
+        O = B.quaternion_order([1, qi, (qi + qj)/2, (1 + qk)/2])
+        assert O.is_maximal()
+        self.O = O
+        self.qi = qi
+        self.qj = qj
+        self.qk = qk
 
-        # compute the actions of qi, (qi + qj)/2, (1 + qk)/2 on E[2^e]
+        """
+        For computing the actions of qi, (qi + qj)/2, (1 + qk)/2 on E[2^e],
+        we use a basis (Pext, Qext) of E[2^(e+1)] over GF(p^4)
+        """
         tmp = self.Fp2.random_element()
         while is_square(tmp):
             tmp = self.Fp2.random_element()
         Fp2x = PolynomialRing(self.Fp2, 'x')
         x = Fp2x.gen()
-        Fp4 = self.Fp2.extension(x**2 - tmp)
-        Ext = self.E.base_extend(Fp4)
-        P, Q = Ext.torsion_basis(2**(e+1))
-        print(f"Found basis P, Q of E[2^{e+1}] over Fp4")
+        f = tmp.minpoly()(x**2)
+        Fp4 = GF(p**4, modulus=f, names='j')
+        Eext = EllipticCurve(Fp4, [1, 0])
+        pi = Eext.frobenius_isogeny(1)
+        Pext, Qext = Eext.torsion_basis(2**(e+1))
 
-        R = 10*P + 15*Q
-        a, b = self._BiDLP(R, P, Q, 2**(e+1))
-        print(f"Action of qi: {a}P + {b}Q")
+        # (P, Q) is a basis of E[2^e] over GF(p^2)
+        emb = self.Fp2.embeddings(Fp4)[0]
+        res = emb.section()
+        def restrict_point(Pext):
+            x, y = Pext.xy()
+            return E([res(c) for c in (x, y)])
+        P = restrict_point(2*Pext)
+        Q = restrict_point(2*Qext)
+        
+        # The action of qi
+        def qi_action(P):
+            x, y = P.xy()
+            return E([-x, i*y])
+        iP = qi_action(P)
+        iQ = qi_action(Q)
+        self.matrix_i = self._make_action_matrix(iP, iQ, P, Q, 2**e)
 
-    def _BiDLP(R, P, Q, n):
-        # solve Bi-DLP R = aP + bQ
-        ePQ = P.weil_pairing(Q, n)
-        ePR = P.weil_pairing(R, n)
-        eRQ = R.weil_pairing(Q, n)
+        # The action of (qi + qj)/2
+        def qi_action_ext(P):
+            x, y = P.xy()
+            return Eext([-x, emb(i)*y])
+        Pd = restrict_point(qi_action_ext(Pext) + pi(Pext))
+        Qd = restrict_point(qi_action_ext(Qext) + pi(Qext))
+        self.matrix_qi_qj = self._make_action_matrix(Pd, Qd, P, Q, 2**e)
 
-        print(f"e(P, Q) = {ePQ}, e(P, R) = {ePR}, e(R, Q) = {eRQ}")
-        a = discrete_log(eRQ, ePQ)
-        b = discrete_log(ePR, ePQ)
-        print(f"Found a={a}, b={b} such that e(R, Q) = e(P, Q)^a and e(P, R) = e(P, Q)^b")
-        assert R == a*P + b*Q
-        return a, b
+        # The action of (1 + qk)/2
+        Pd = restrict_point(Pext + qi_action_ext(pi(Pext)))
+        Qd = restrict_point(Qext + qi_action_ext(pi(Qext)))
+        self.matrix_1_qk = self._make_action_matrix(Pd, Qd, P, Q, 2**e)
+
+    @staticmethod
+    def _make_action_matrix(actP, actQ, P, Q, N):
+        a, b = BiDLP(actP, P, Q, N)
+        c, d = BiDLP(actQ, P, Q, N)
+        return matrix(ZZ, 2, 2, [a, b, c, d])
 
