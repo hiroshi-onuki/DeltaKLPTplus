@@ -1,17 +1,23 @@
 from id2iso import IdealToIsogeny
 from quaternion import RandomFixedNormIdeal
 from special_curve import SpecialSuperSingularCurve
+from sqisign import SQIsign
 
 e = 248
 f = 5
 p = 2^e * f - 1  
 
-E0withEnd = SpecialSuperSingularCurve(p, e, f)
+SQIsign_instance = SQIsign(p, e, f)
+E0withEnd = SQIsign_instance.E0withEnd
 
 for _ in range(10):
     N = random_prime(10*p)
     I, _ = RandomFixedNormIdeal(E0withEnd.order, N)
     print(f"Generated ideal I with norm {N}")
 
-    IdealToIsogeny(E0withEnd, I)
+    EI, PI, QI = IdealToIsogeny(E0withEnd, I)
     print("Isogeny computed successfully")
+
+    SQIsign_instance._deterministic_torsion_basis(EI, e)
+    print("Deterministic torsion basis computed successfully")
+
