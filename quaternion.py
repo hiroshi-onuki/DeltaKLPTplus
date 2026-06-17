@@ -79,7 +79,7 @@ def EquivalentRandomPrimeIdeal(I, constraint=lambda N: True):
 def SmallestEquivalentIdeal(I):
     O0 = I.left_order()
     basis = LLLBasis(I)
-    return O0.left_ideal([b * basis[0].conjugate() / norm(I) for b in basis])
+    return EquivalentIdeal(I, basis[0]), basis[0]
 
 # return gamma in O0 s.t. nrd(gamma) = n
 def FullRepresentInteger(O0, n):

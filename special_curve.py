@@ -6,8 +6,10 @@ from sage.all import (
     PolynomialRing,
     is_square,
     matrix,
+    identity_matrix,
+    vector,
 )
-from utilities.discrete_log import BiDLP
+from utilities.discrete_log import BiDLP, tate_pairing_pari
 
 class SpecialSuperSingularCurve:
     def __init__(self, p, e, f):
@@ -23,13 +25,13 @@ class SpecialSuperSingularCurve:
         i = self.Fp2.gen()
         assert i**2 == -1
         E = EllipticCurve(self.Fp2, [1, 0]) # y^2 = x^3 + x
-        self.E = E
+        self.curve = E
         B = QuaternionAlgebra(-1, -p)
         _, qi, qj, qk = B.basis()
         assert qi**2 == -1 and qj**2 == -p and qk == qi*qj
         O = B.quaternion_order([1, qi, (qi + qj)/2, (1 + qk)/2])
         assert O.is_maximal()
-        self.O = O
+        self.order = O
         self.qi = qi
         self.qj = qj
         self.qk = qk
@@ -57,6 +59,10 @@ class SpecialSuperSingularCurve:
             return E([res(c) for c in (x, y)])
         P = restrict_point(2*Pext)
         Q = restrict_point(2*Qext)
+        self.P = P
+        self.Q = Q
+        tPQ = tate_pairing_pari(P, Q, 2**e)
+        self.tate_pairing_PQ = tPQ
         
         # The action of qi
         def qi_action(P):
@@ -85,3 +91,8 @@ class SpecialSuperSingularCurve:
         c, d = BiDLP(actQ, P, Q, N)
         return matrix(ZZ, 2, 2, [a, b, c, d])
 
+    def quaternion_action(self, alpha):
+        a, b, c, d = vector(alpha) * self.order.basis_matrix().inverse()
+        M = a * identity_matrix(2) + b * self.matrix_i + c * self.matrix_qi_qj + d * self.matrix_1_qk
+        a, b, c, d = M.list()
+        return a * self.P + b * self.Q, c * self.P + d * self.Q

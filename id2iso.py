@@ -9,6 +9,7 @@ from sage.all import (
 from theta_structures.couple_point import CouplePoint
 from theta_isogenies.product_isogeny import EllipticProductIsogeny
 from quaternion import SmallestEquivalentIdeal, SmallGenerator, SumOf2Squares
+from utilities.discrete_log import tate_pairing_pari
 
 def Qlapoti(I, e, max_tries=10000):
     _, qi, _, _ = I.quaternion_algebra().basis()
@@ -16,7 +17,7 @@ def Qlapoti(I, e, max_tries=10000):
     O = I.left_order()
     N = 2**e
 
-    I = SmallestEquivalentIdeal(I)
+    I, beta0 = SmallestEquivalentIdeal(I)
     n = norm(I)
 
     while max_tries > 0:
@@ -72,5 +73,47 @@ def Qlapoti(I, e, max_tries=10000):
             v_gamma = vector(gamma) * O.basis_matrix().inverse()
             if (v_gamma - vector([1, 0, 0, 0])) % 2 == 0 or (v_gamma - vector([0, 1, 0, 0])) % 2 == 0:
                 continue
-            return beta1, beta2
+            beta1 = beta1 * beta0 / n
+            beta2 = beta2 * beta0 / n
+            return beta1, beta2, gamma
     raise ValueError("No suitable ideals found")
+
+def IdealToIsogeny(E0withEnd, I):
+    E0 = E0withEnd.curve
+    O = E0withEnd.order
+    assert I.left_order() == O
+    e = E0withEnd.e
+
+    beta1, beta2, gamma = Qlapoti(I, e - 2)
+    assert beta1 in I and beta2 in I
+    assert beta2 * beta1.conjugate() / norm(I) == gamma
+    d1 = beta1.reduced_norm() / norm(I)
+    d2 = beta2.reduced_norm() / norm(I)
+    assert d1 + d2 == 2**(e - 2)
+
+    P1, Q1 = d1 * E0withEnd.P, d1 * E0withEnd.Q
+    P2, Q2 = E0withEnd.quaternion_action(gamma)
+    K1 = CouplePoint(P1, P2)
+    K2 = CouplePoint(Q1, Q2)
+    Phi = EllipticProductIsogeny((K1, K2), e-2)
+    image1 = Phi(CouplePoint(E0withEnd.P, E0(0)))
+    image2 = Phi(CouplePoint(E0withEnd.Q, E0(0)))
+
+    Pim, Qim = image1[0], image2[0]
+    exp = (E0withEnd.p**2 - 1) / 2**e
+    tPimQim = tate_pairing_pari(Pim, Qim, 2**e)**exp
+
+    # for check
+    ePQ = E0withEnd.P.weil_pairing(E0withEnd.Q, 2**e)
+    ePimQim = Pim.weil_pairing(Qim, 2**e)
+    assert ePimQim == ePQ**d1 or ePimQim == ePQ**d2
+
+    if tPimQim == E0withEnd.tate_pairing_PQ**(d1*exp):
+        return Phi.codomain()[0], Pim, Qim
+    else:
+        Pim, Qim = image2[1], image1[1]
+        tPimQim = tate_pairing_pari(Pim, Qim, 2**e)**exp
+        assert tPimQim == E0withEnd.tate_pairing_PQ**(d1*exp)
+        return Phi.codomain()[1], Pim, Qim
+
+
