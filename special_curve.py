@@ -70,7 +70,7 @@ class SpecialSuperSingularCurve:
             return E([-x, i*y])
         iP = qi_action(P)
         iQ = qi_action(Q)
-        self.matrix_i = self._make_action_matrix(iP, iQ, P, Q, 2**e)
+        self.matrix_qi = self._make_action_matrix(iP, iQ, P, Q, 2**e)
 
         # The action of (qi + qj)/2
         def qi_action_ext(P):
@@ -93,6 +93,22 @@ class SpecialSuperSingularCurve:
 
     def quaternion_action(self, alpha):
         a, b, c, d = vector(alpha) * self.order.basis_matrix().inverse()
-        M = a * identity_matrix(2) + b * self.matrix_i + c * self.matrix_qi_qj + d * self.matrix_1_qk
+        M = a * identity_matrix(2) + b * self.matrix_qi + c * self.matrix_qi_qj + d * self.matrix_1_qk
         a, b, c, d = M.list()
         return a * self.P + b * self.Q, c * self.P + d * self.Q
+
+    def KernelToIdeal(self, a, b):
+        """
+        return a left O-ideal I s.t. E0[I] = <a*P + b*Q>
+        find a, b s.t.
+            a*R + b*(qj + (1 + qk)/2)(R) = i(R), wehre R = a*P + b*Q
+        """
+        R = ZZ.quotient_ring(ZZ(2**self.e))
+        M = 2*self.matrix_qi_qj - self.matrix_qi + self.matrix_1_qk # the action of (qj + (1 + qk)/2)
+        M = matrix(R, M)
+        v = vector(R, [a, b])
+        Mv = M.transpose() * v
+        M = matrix(R, [v, Mv]).transpose()
+        v = M.inverse() * self.matrix_qi.transpose() * v
+        a, b = [ZZ(c) for c in v]
+        return self.order.left_ideal([a + b*(self.qj + (1 + self.qk)/2) - self.qi, 2**self.e])

@@ -1,5 +1,5 @@
 from id2iso import IdealToIsogeny
-from quaternion import RandomFixedNormIdeal
+from quaternion import RandomFixedNormIdeal, SmallGenerator
 from special_curve import SpecialSuperSingularCurve
 from sqisign import SQIsign
 
@@ -21,3 +21,11 @@ for _ in range(10):
     SQIsign_instance._deterministic_torsion_basis(EI, e)
     print("Deterministic torsion basis computed successfully")
 
+    P, Q = E0withEnd.P, E0withEnd.Q
+    c = randint(0, 2**e - 1)
+    R = P + c*Q
+    I = E0withEnd.KernelToIdeal(1, c)
+    alpha = SmallGenerator(I)
+    alphaP, alphaQ = E0withEnd.quaternion_action(alpha) 
+    assert (alphaP + c*alphaQ).is_zero(), "KernelToIdeal failed"
+    print("KernelToIdeal verified successfully")
