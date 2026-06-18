@@ -7,6 +7,7 @@ from sage.all import (
 import hashlib
 import special_curve
 import quaternion
+import util
 
 class SQIsign:
     def __init__(self, p, e, f, lam):
@@ -22,21 +23,28 @@ class SQIsign:
         Isk, _ = quaternion.RandomFixedNormIdeal(self.E0withEnd.order, self.Dmix)
         Epk, Psk, Qsk = self.E0withEnd.IdealToIsogeny(Isk)
         Ppk, Qpk = self._deterministic_torsion_basis(Epk, self.E0withEnd.e)
-
-        sk = (Isk, Psk, Qsk)
+        Msk = util.BiDLP_matrix_power_two(Psk, Qsk, Ppk, Qpk, self.E0withEnd.e)
+        sk = (Isk, Msk)
         pk = Epk
         return sk, pk
 
     def Hash(self, msg):
         h = hashlib.sha256(msg)
-        c = int.from_bytes(h.digest(), byteorder='big')
+        c = util.bytes_to_integer(h.digest())
         return c % 2**self.lam
 
     def Sign(self, sk, pk, msg):
-        Isk, Ppk, Qpk = sk
+        Isk, Msk = sk
         Epk = pk
-        c = self.Hash(msg)
-        print(f"Hash of the message: {c}, {c % 2**self.lam}")
+        Ppk, Qpk = self._deterministic_torsion_basis(Epk, self.E0withEnd.e)
+
+        Icom, _ = quaternion.RandomFixedNormIdeal(self.E0withEnd.order, self.Dmix)
+        Ecom, Pcom, Qcom = self.E0withEnd.IdealToIsogeny(Icom)
+
+        c = self.Hash(msg + util.field_element_to_bytes(Ecom.j_invariant(), self.lam//2))
+        a, b = Msk.transpose() * vector([1, c])
+        Ichl = self.E0withEnd.KernelToIdeal(a, b)
+        
 
 
     @staticmethod
