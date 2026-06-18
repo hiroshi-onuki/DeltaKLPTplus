@@ -29,3 +29,6 @@ for _ in range(10):
     alphaP, alphaQ = E0withEnd.quaternion_action(alpha) 
     assert (alphaP + c*alphaQ).is_zero(), "KernelToIdeal failed"
     print("KernelToIdeal verified successfully")
+
+    sk, pk = SQIsign_instance.Keygen()
+    SQIsign_instance.Sign(sk, pk, b"Test message")
