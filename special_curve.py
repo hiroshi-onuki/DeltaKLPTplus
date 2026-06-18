@@ -9,7 +9,8 @@ from sage.all import (
     identity_matrix,
     vector,
 )
-from utilities.discrete_log import BiDLP, tate_pairing_pari
+from util import BiDLP_matrix_power_two
+from utilities.discrete_log import tate_pairing_pari
 
 class SpecialSuperSingularCurve:
     def __init__(self, p, e, f):
@@ -70,7 +71,7 @@ class SpecialSuperSingularCurve:
             return E([-x, i*y])
         iP = qi_action(P)
         iQ = qi_action(Q)
-        self.matrix_qi = self._make_action_matrix(iP, iQ, P, Q, 2**e)
+        self.matrix_qi = BiDLP_matrix_power_two(iP, iQ, P, Q, e)
 
         # The action of (qi + qj)/2
         def qi_action_ext(P):
@@ -78,18 +79,13 @@ class SpecialSuperSingularCurve:
             return Eext([-x, emb(i)*y])
         Pd = restrict_point(qi_action_ext(Pext) + pi(Pext))
         Qd = restrict_point(qi_action_ext(Qext) + pi(Qext))
-        self.matrix_qi_qj = self._make_action_matrix(Pd, Qd, P, Q, 2**e)
+        self.matrix_qi_qj = BiDLP_matrix_power_two(Pd, Qd, P, Q, e)
 
         # The action of (1 + qk)/2
         Pd = restrict_point(Pext + qi_action_ext(pi(Pext)))
         Qd = restrict_point(Qext + qi_action_ext(pi(Qext)))
-        self.matrix_1_qk = self._make_action_matrix(Pd, Qd, P, Q, 2**e)
+        self.matrix_1_qk = BiDLP_matrix_power_two(Pd, Qd, P, Q, e)
 
-    @staticmethod
-    def _make_action_matrix(actP, actQ, P, Q, N):
-        a, b = BiDLP(actP, P, Q, N)
-        c, d = BiDLP(actQ, P, Q, N)
-        return matrix(ZZ, 2, 2, [a, b, c, d])
 
     def quaternion_action(self, alpha):
         a, b, c, d = vector(alpha) * self.order.basis_matrix().inverse()

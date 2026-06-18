@@ -1,14 +1,45 @@
 from sage.all import (
+    is_prime,
     sqrt,
     kronecker,
     EllipticCurve,
 )
 import special_curve
+import quaternion
 
 class SQIsign:
-    def __init__(self, p, e, f):
+    def __init__(self, p, e, f, lam):
         E0withEnd = special_curve.SpecialSuperSingularCurve(p, e, f)
         self.E0withEnd = E0withEnd
+        Dmix = p**2 + 2
+        while not is_prime(Dmix):
+            Dmix += 2
+        self.Dmix = Dmix
+        self.lam = lam
+
+    def Keygen(self):
+        Isk, _ = quaternion.RandomFixedNormIdeal(self.E0withEnd.order, self.Dmix)
+        Epk, Psk, Qsk = special_curve.IdealToIsogeny(self.E0withEnd, Isk)
+        Ppk, Qpk = self._deterministic_torsion_basis(Epk, self.E0withEnd.e)
+
+        sk = (Isk, Psk, Qsk)
+        pk = Epk
+        return sk, pk
+
+    def Hash(self, msg):
+        shake = SHAKE256.new(msg)
+        return int.from_bytes(shake.read(self.lam // 8))
+
+    def Sign(self, sk, pk, msg):
+        Isk, Ppk, Qpk = sk
+        Epk = pk
+        c = self.Hash(msg)
+
+        alpha = quaternion.SmallGenerator(I)
+        alphaP, alphaQ = self.E0withEnd.quaternion_action(alpha) 
+        assert (alphaP + c*alphaQ).is_zero(), "KernelToIdeal failed"
+        return (alpha, R)
+
 
     @staticmethod
     def _deterministic_torsion_basis(E, e):

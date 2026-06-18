@@ -1,13 +1,13 @@
 from id2iso import IdealToIsogeny
 from quaternion import RandomFixedNormIdeal, SmallGenerator
-from special_curve import SpecialSuperSingularCurve
 from sqisign import SQIsign
 
 e = 248
 f = 5
 p = 2^e * f - 1  
+lam = 128
 
-SQIsign_instance = SQIsign(p, e, f)
+SQIsign_instance = SQIsign(p, e, f, lam)
 E0withEnd = SQIsign_instance.E0withEnd
 
 for _ in range(10):
