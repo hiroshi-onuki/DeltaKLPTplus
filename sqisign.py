@@ -7,7 +7,6 @@ from sage.all import (
 import hashlib
 import special_curve
 import quaternion
-from id2iso import IdealToIsogeny
 
 class SQIsign:
     def __init__(self, p, e, f, lam):
@@ -21,7 +20,7 @@ class SQIsign:
 
     def Keygen(self):
         Isk, _ = quaternion.RandomFixedNormIdeal(self.E0withEnd.order, self.Dmix)
-        Epk, Psk, Qsk = IdealToIsogeny(self.E0withEnd, Isk)
+        Epk, Psk, Qsk = self.E0withEnd.IdealToIsogeny(Isk)
         Ppk, Qpk = self._deterministic_torsion_basis(Epk, self.E0withEnd.e)
 
         sk = (Isk, Psk, Qsk)
