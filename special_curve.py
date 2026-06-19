@@ -148,13 +148,13 @@ class SpecialSuperSingularCurve:
         raise ValueError("Failed to determine the codomain of the isogeny")
 
 
-    def KernelToIdeal(self, a, b):
+    def KernelToIdeal(self, a, b, exp):
         """
-        return a left O-ideal I s.t. E0[I] = <a*P + b*Q>
+        return a left O-ideal I s.t. E0[I] = <a*P' + b*Q'>, where (P', Q') = 2^(e-exp)*(P, Q)
         find a, b s.t.
             a*R + b*(qj + (1 + qk)/2)(R) = i(R), wehre R = a*P + b*Q
         """
-        R = ZZ.quotient_ring(ZZ(2**self.e))
+        R = ZZ.quotient_ring(ZZ(2**exp))
         M = 2*self.matrix_qi_qj - self.matrix_qi + self.matrix_1_qk # the action of (qj + (1 + qk)/2)
         M = matrix(R, M)
         v = vector(R, [a, b])
@@ -162,4 +162,4 @@ class SpecialSuperSingularCurve:
         M = matrix(R, [v, Mv]).transpose()
         v = M.inverse() * self.matrix_qi.transpose() * v
         a, b = [ZZ(c) for c in v]
-        return self.order.left_ideal([a + b*(self.qj + (1 + self.qk)/2) - self.qi, 2**self.e])
+        return self.order.left_ideal([a + b*(self.qj + (1 + self.qk)/2) - self.qi, 2**exp])

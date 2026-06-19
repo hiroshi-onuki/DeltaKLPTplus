@@ -15,6 +15,7 @@ from sage.all import (
     matrix,
     CRT,
     IntegralLattice,
+    log,
 )
 from sage.rings.factorint import factor_trial_division
 import lattice
@@ -333,7 +334,9 @@ def EquivalentIdealsWithSameNormSmallN(I1, I2, N, num_vectors=10):
 
     return EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2), newN
 
-def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound, EISN_loop_bound=10, EISN_vec_bound=100, SA_loop_bound=100):
+def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound,
+                    KLPT_margin=50,
+                    EISN_loop_bound=100, EISN_vec_bound=1000, SA_loop_bound=1000):
     assert Icom.left_order() == IskIchl.left_order()
     _, _, qj, qk = Icom.quaternion_algebra().basis()
     O = Icom.left_order()
@@ -341,13 +344,13 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound, EISN_loop_bound=10, EISN_v
 
     # bound for the original KLPT
     B1 = ceil(p**(0.5))
-    B2 = ceil(p**(2.8))
+    B2 = ceil(p**(2.8)*log(p))
 
     while True:
         found = False
         while not found:
-            n1 = random_prime(2**40*B1, lbound=B1)
-            n2 = random_prime(2**40*B2, lbound=B2)
+            n1 = random_prime(2**KLPT_margin*B1, lbound=B1)
+            n2 = random_prime(2**KLPT_margin*B2, lbound=B2)
             J1, _, found = KLPT(Icom, n1, n2)
             J2, alpha2, found2 = KLPT(IskIchl, n1, n2)
             found = found and found2

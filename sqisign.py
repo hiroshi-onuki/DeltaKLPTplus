@@ -1,8 +1,11 @@
 from sage.all import (
+    ZZ,
     is_prime,
     sqrt,
     kronecker,
     EllipticCurve,
+    vector,
+    norm,
 )
 import hashlib
 import special_curve
@@ -36,15 +39,51 @@ class SQIsign:
     def Sign(self, sk, pk, msg):
         Isk, Msk = sk
         Epk = pk
-        Ppk, Qpk = self._deterministic_torsion_basis(Epk, self.E0withEnd.e)
+        O0 = self.E0withEnd.order
+        e = self.E0withEnd.e
+        Ppk, Qpk = self._deterministic_torsion_basis(Epk, e)
 
         Icom, _ = quaternion.RandomFixedNormIdeal(self.E0withEnd.order, self.Dmix)
         Ecom, Pcom, Qcom = self.E0withEnd.IdealToIsogeny(Icom)
 
-        c = self.Hash(msg + util.field_element_to_bytes(Ecom.j_invariant(), self.lam//2))
+        c = self.Hash(msg + util.field_element_to_bytes(Ecom.j_invariant(), self.lam//2) + util.field_element_to_bytes(Epk.j_invariant(), self.lam//2))
         a, b = Msk.transpose() * vector([1, c])
-        Ichl = self.E0withEnd.KernelToIdeal(a, b)
+        Ichl = self.E0withEnd.KernelToIdeal(a, b, self.lam)
+        IskIchl = Isk.intersection(Ichl)
+
+        print("Starting deltaKLPTforSign...")
+        IcomIrsp, _ = quaternion.deltaKLPTforSign(Icom, IskIchl, 2, 1050, 2**260) # tmp!
+        print("deltaKLPTforSign completed.")
+        N = norm(IcomIrsp) / 2**1050
+        Icom_d = IcomIrsp + O0 * N
+        assert Icom.right_order().isomorphism_to(Icom_d.right_order()) != None
+        O = IcomIrsp.right_order()
+        Od = IskIchl.right_order()
+        alpha = O.isomorphism_to(Od, conjugator=True)
+        Iall = IskIchl * alpha.inverse() * IcomIrsp.conjugate() * alpha
+        n = norm(Iall) / alpha.reduced_norm()
+        alpha *= ZZ(sqrt(n))     # scale alpha so that norm(Iall) = norm(alpha)
+        assert Iall == O0 * alpha
+        assert alpha/2 not in O0
+        e0 = self.lam + 1050 - 4*e
         
+        Im0p2 = Iall + O0 * 2**e0
+        
+        Im1Im1p2f = Iall + O0 * 2**(e0 + 2*e) * norm(Isk)
+        Im1 = Im1Im1p2f + O0 * 2**(e0 + e) * norm(Isk)
+        Im1, beta, nIm1 = quaternion.EquivalentRandomPrimeIdeal(Im1)
+        Im1p2f = Im1Im1p2f * (beta.conjugate() / nIm1) + O0 * 2**e
+        Im1p2b = O0 * beta.conjugate() + O0 * 2**e
+
+        Im2Im2p2f = Iall + O0 * 2**(e0 + 4*e) * norm(Isk)
+        Im2 = Im2Im2p2f + O0 * 2**(e0 + 3*e) * norm(Isk)
+        Im2, beta, nIm2 = quaternion.EquivalentRandomPrimeIdeal(Im2)
+        Im2p2f = Im2Im2p2f * (beta.conjugate() / nIm2) + O0 * 2**e
+        Im2p2b = O0 * beta.conjugate() + O0 * 2**e
+
+        assert Isk.intersection(Im0p2).right_order().isomorphism_to(Im1.intersection(Im1p2b).right_order()) != None
+        assert Im1Im1p2f.right_order().isomorphism_to(Im2.intersection(Im2p2b).right_order()) != None
+        assert Im2Im2p2f.right_order().isomorphism_to(Icom.right_order()) != None
 
 
     @staticmethod
