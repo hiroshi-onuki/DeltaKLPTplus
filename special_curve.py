@@ -185,8 +185,4 @@ class SpecialSuperSingularCurve:
         else:
             v = vector([M[1, 1], -M[0, 1]]) % 2**exp
         assert (v * M) % 2**exp == vector([0, 0]), f"{(v * M) % 2**exp} != {vector([0, 0])}"
-        a, b = v
-        if a % 2 == 1:
-            return (b * inverse_mod(a, 2**exp)) % 2**exp, True
-        else:
-            return (a * inverse_mod(b, 2**exp)) % 2**exp, False
+        return vector(ZZ, v)
