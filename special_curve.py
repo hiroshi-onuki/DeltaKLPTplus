@@ -180,7 +180,7 @@ class SpecialSuperSingularCurve:
                     ii, jj = i, j
                     break
         assert ii is not None and jj is not None
-        if ii == 0:
+        if jj == 0:
             v = vector([M[1, 0], -M[0, 0]]) % 2**exp
         else:
             v = vector([M[1, 1], -M[0, 1]]) % 2**exp

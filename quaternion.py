@@ -437,8 +437,7 @@ def Qlapoti(I, e, max_tries=10000):
             if beta1.reduced_norm() / n % 2 == 0:
                 continue
             gamma = beta2*beta1.conjugate() / n
-            v_gamma = vector(gamma) * O.basis_matrix().inverse()
-            if (v_gamma - vector([1, 0, 0, 0])) % 2 == 0 or (v_gamma - vector([0, 1, 0, 0])) % 2 == 0:
+            if (gamma - 1) / 2 in O or (gamma - qi) / 2 in O:
                 continue
             beta1 = beta1 * beta0 / n
             beta2 = beta2 * beta0 / n
