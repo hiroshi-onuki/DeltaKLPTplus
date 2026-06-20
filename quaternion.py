@@ -5,7 +5,7 @@ from sage.all import (
     ceil,
     floor,
     gcd,
-    is_prime,
+    is_pseudoprime,
     random_prime,
     norm,
     randint,
@@ -30,7 +30,7 @@ def SumOf2Squares(n):
         return 1, 0
 
     factor = factor_trial_division(n, 100)
-    if factor and is_prime(factor[-1][0]):
+    if factor and is_pseudoprime(factor[-1][0]):
         try:
             x, y = sum_of_k_squares(2, ZZ(n))
             return x, y
@@ -69,7 +69,7 @@ def EquivalentRandomPrimeIdeal(I, constraint=lambda N: True):
     basis = LLLBasis(I)
     N = 0
     a = O(0)
-    while not (is_prime(N) and constraint(N)):
+    while not (is_pseudoprime(N) and constraint(N)):
         cs = [randint(-100, 100) for _ in range(len(basis))]
         a = sum(c * b for c, b in zip(cs, basis))
         N = ZZ(a.reduced_norm() // norm(I))
@@ -236,10 +236,7 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, num_vectors=10):
 
     # short solution for alpha2 * x * bar(alpha1) = 0 mod N with gcd(norm(x), N) = 1
     B = ceil(sqrt(N))
-    vlist = []
-    while len(vlist) == 0:
-        vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: gcd(newN, N) == 1, num_vectors=num_vectors)
-        B *= 2
+    vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: gcd(newN, N) == 1, num_vectors=num_vectors)
     v = vlist[randint(0, len(vlist)-1)]
     x = sum(c * b for c, b in zip(v, O0.basis()))
     Nx = x.reduced_norm()
@@ -254,10 +251,7 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, num_vectors=10):
 
     # find a short vector v in L s.t. the normalized norm of the corresponding element is prime
     B = N*ceil(sqrt(p*Nx))
-    vlist = []
-    while len(vlist) == 0:
-        vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_prime(ZZ(newN/(2*N))), num_vectors=num_vectors)
-        B *= 2
+    vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_pseudoprime(ZZ(newN/(2*N))), num_vectors=num_vectors)
     v = vlist[randint(0, len(vlist)-1)]
     beta1 = sum(c * b for c, b in zip(v, O0.basis()))
     newN = ZZ(beta1.reduced_norm() / N)
@@ -303,10 +297,7 @@ def EquivalentIdealsWithSameNormSmallN(I1, I2, N, num_vectors=10):
     assert b0 is not None
     L = IntegralLattice(matrix([[1, 0], [0, 1]]), [b0, b1])
     B = ceil(sqrt(N))
-    vlist = []
-    while len(vlist) == 0:
-        vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: gcd(newN, N) == 1, num_vectors=num_vectors)
-        B *= 2
+    vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: gcd(newN, N) == 1, num_vectors=num_vectors)
     v = vlist[randint(0, len(vlist)-1)]
     x = v[0] + v[1]*qi
     assert x.reduced_norm() == Nx
@@ -320,10 +311,7 @@ def EquivalentIdealsWithSameNormSmallN(I1, I2, N, num_vectors=10):
 
     # find a short vector v in L s.t. the normalized norm of the corresponding element is prime
     B = N*ceil(sqrt(p*Nx))
-    vlist = []
-    while len(vlist) == 0:
-        vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_prime(ZZ(newN/(2*N))), num_vectors=num_vectors)
-        B *= 2
+    vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_pseudoprime(ZZ(newN/(2*N))), num_vectors=num_vectors)
     v = vlist[randint(0, len(vlist)-1)]
     beta1 = sum(c * b for c, b in zip(v, O0.basis()))
     newN = ZZ(beta1.reduced_norm() / N)
@@ -335,7 +323,7 @@ def EquivalentIdealsWithSameNormSmallN(I1, I2, N, num_vectors=10):
     return EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2), newN
 
 def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound,
-                    KLPT_margin=50,
+                    KLPT_margin=40,
                     EISN_loop_bound=100, EISN_vec_bound=1000, SA_loop_bound=1000):
     assert Icom.left_order() == IskIchl.left_order()
     _, _, qj, qk = Icom.quaternion_algebra().basis()
@@ -344,13 +332,13 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound,
 
     # bound for the original KLPT
     B1 = ceil(p**(0.5))
-    B2 = ceil(p**(2.8)*log(p))
+    B2 = ceil(p**(2.5)*log(p))
 
     while True:
         found = False
         while not found:
-            n1 = random_prime(2**KLPT_margin*B1, lbound=B1)
-            n2 = random_prime(2**KLPT_margin*B2, lbound=B2)
+            n1 = random_prime(2**KLPT_margin*B1, lbound=B1, proof=False)
+            n2 = random_prime(2**KLPT_margin*B2, lbound=B2, proof=False)
             J1, _, found = KLPT(Icom, n1, n2)
             J2, alpha2, found2 = KLPT(IskIchl, n1, n2)
             found = found and found2

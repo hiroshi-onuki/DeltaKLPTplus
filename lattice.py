@@ -106,12 +106,21 @@ def MakeQuatraticForm(basis, quadratic_form):
             q[i, j] = (C[i, j] - sum(q[k, k] * q[k, i] * q[k, j] for k in range(i))) / q[i, i]
     return q
 
-# return list of vectors alpha in L s.t. norm(alpha) < B and condition(norm(alpha))
-def LatticeEnumeration(L, B, condition, num_vectors):
-    red_basis = [vector(ZZ, b) for b in L.LLL().basis()]
-    q = MakeQuatraticForm(red_basis, lambda x, y: x.inner_product(y))
+# floor(sqrt(s) + U) for a nonnegative rational s and a rational U, computed exactly.
+def _floor_sqrt_plus(s, U):
+    num = s.numerator()
+    den = s.denominator()
+    fs = (num * den).isqrt() // den          # floor(sqrt(s))
+    k = ZZ((fs + U).floor()) + 2             # guaranteed >= the true value
+    while True:
+        t = k - U
+        if t <= 0 or t * t <= s:
+            return k
+        k -= 1
 
-    n = len(red_basis)
+# enumerate vectors of the (already reduced) basis with norm < B; helper for
+# LatticeEnumeration that keeps the costly basis reduction out of the B loop.
+def _enumerate_below_bound(red_basis, q, G, zero_vec, n, B, condition, num_vectors):
     S = [0] * n
     U = [0] * n
     upper = [ZZ(0)] * n
@@ -119,9 +128,9 @@ def LatticeEnumeration(L, B, condition, num_vectors):
     S[-1] = ZZ(B)
 
     i = n - 1
-    Z = sqrt(S[i] / q[i, i])
-    upper[i] = ZZ(floor(Z - U[i]))
-    x[i] = ZZ(ceil(-Z - U[i])) - 1
+    s = S[i] / q[i, i]
+    upper[i] = _floor_sqrt_plus(s, -U[i])
+    x[i] = -_floor_sqrt_plus(s, U[i]) - 1
 
     ret = []
     while True:
@@ -137,19 +146,40 @@ def LatticeEnumeration(L, B, condition, num_vectors):
             i -= 1
             U[i] = sum(q[i, j] * x[j] for j in range(i + 1, n))
             assert q[i, i] > 0
-            Z = sqrt(S[i] / q[i, i])
-            upper[i] = ZZ(floor(Z - U[i]))
-            x[i] = ZZ(ceil(-Z - U[i])) - 1
+            s = S[i] / q[i, i]
+            upper[i] = _floor_sqrt_plus(s, -U[i])
+            x[i] = -_floor_sqrt_plus(s, U[i]) - 1
             continue
 
         if any(x):
             g = gcd(x)
             coeffs = [ZZ(c // g) for c in x]
-            alpha = sum((coeffs[j] * red_basis[j] for j in range(n)), vector(ZZ, [0] * len(red_basis[0])))
-            newN = ZZ(alpha.inner_product(alpha))
+            newN = sum(coeffs[a] * G[a][b] * coeffs[b] for a in range(n) for b in range(n))
             if condition(newN):
+                alpha = sum((coeffs[j] * red_basis[j] for j in range(n)), zero_vec)
                 ret.append(alpha)
                 if len(ret) >= num_vectors:
                     return ret
         else:
             return ret
+
+# return list of vectors alpha in L s.t. norm(alpha) < B and condition(norm(alpha)),
+# doubling B until at least one such vector is found. The lattice reduction and the
+# quadratic-form / Gram setup are done once and shared across all doublings.
+def LatticeEnumeration(L, B, condition, num_vectors):
+    red_basis = [vector(ZZ, b) for b in L.LLL().basis()]
+    n = len(red_basis)
+    # Gram matrix of the reduced basis: lets us both build the Gram-Schmidt
+    # quadratic form and evaluate the norm of a candidate directly from its
+    # integer coefficients, avoiding an inner_product (coordinate_vector) call
+    # for every enumerated point.
+    G = [[ZZ(red_basis[a].inner_product(red_basis[b])) for b in range(n)] for a in range(n)]
+    q = MakeQuatraticForm(list(range(n)), lambda a, b: G[a][b])
+    zero_vec = vector(ZZ, [0] * len(red_basis[0]))
+
+    B = ZZ(B)
+    while True:
+        ret = _enumerate_below_bound(red_basis, q, G, zero_vec, n, B, condition, num_vectors)
+        if ret:
+            return ret
+        B *= 2
