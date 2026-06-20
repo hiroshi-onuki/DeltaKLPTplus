@@ -15,7 +15,7 @@ from util import BiDLP_matrix_power_two
 from utilities.discrete_log import tate_pairing_pari
 from theta_structures.couple_point import CouplePoint
 from theta_isogenies.product_isogeny import EllipticProductIsogeny
-from quaternion import Qlapoti
+from quaternion import Qlapoti, SmallGenerator
 
 class SpecialSuperSingularCurve:
     def __init__(self, p, e, f):
@@ -147,7 +147,6 @@ class SpecialSuperSingularCurve:
                 return EI, PI, QI
         raise ValueError("Failed to determine the codomain of the isogeny")
 
-
     def KernelToIdeal(self, a, b, exp):
         """
         return a left O-ideal I s.t. E0[I] = <a*P' + b*Q'>, where (P', Q') = 2^(e-exp)*(P, Q)
@@ -163,3 +162,31 @@ class SpecialSuperSingularCurve:
         v = M.inverse() * self.matrix_qi.transpose() * v
         a, b = [ZZ(c) for c in v]
         return self.order.left_ideal([a + b*(self.qj + (1 + self.qk)/2) - self.qi, 2**exp])
+
+    def IdealToKernel(self, I, exp):
+        """
+        return c, is_one_P s.t.
+            E0[I] = <P' + c*Q'> if is_one_P, otherwise E0[I] = <c*P' + Q'>,
+        where (P', Q') = 2^(e-exp)*(P, Q)
+        """
+        assert norm(I) == 2**exp
+        alpha = SmallGenerator(I)
+        a, b, c, d = vector(alpha) * self.order.basis_matrix().inverse()
+        M = a * identity_matrix(2) + b * self.matrix_qi + c * self.matrix_qi_qj + d * self.matrix_1_qk
+        ii, jj = None, None
+        for i in range(2):
+            for j in range(2):
+                if M[i, j] % 2 == 1:
+                    ii, jj = i, j
+                    break
+        assert ii is not None and jj is not None
+        if ii == 0:
+            v = vector([M[1, 0], -M[0, 0]]) % 2**exp
+        else:
+            v = vector([M[1, 1], -M[0, 1]]) % 2**exp
+        assert (v * M) % 2**exp == vector([0, 0]), f"{(v * M) % 2**exp} != {vector([0, 0])}"
+        a, b = v
+        if a % 2 == 1:
+            return (b * inverse_mod(a, 2**exp)) % 2**exp, True
+        else:
+            return (a * inverse_mod(b, 2**exp)) % 2**exp, False

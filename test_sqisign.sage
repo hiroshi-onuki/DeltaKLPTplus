@@ -21,6 +21,10 @@ for _ in range(10):
     assert (alphaP + c*alphaQ).is_zero(), "KernelToIdeal failed"
     print("KernelToIdeal verified successfully")
 
+    cd, is_one_P = E0withEnd.IdealToKernel(I, lam)
+    assert cd == c and is_one_P, "IdealToKernel failed"
+    print("IdealToKernel verified successfully")
+
     sk, pk = SQIsign_instance.Keygen()
     print("Key generation successful")
     SQIsign_instance.Sign(sk, pk, b"Test message")

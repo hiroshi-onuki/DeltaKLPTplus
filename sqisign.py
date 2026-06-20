@@ -96,6 +96,13 @@ class SQIsign:
         assert Im1Im1p2f.right_order().isomorphism_to(Im2.intersection(Im2p2b).right_order()) != None
         assert Im2Im2p2f.right_order().isomorphism_to(Icom.right_order()) != None
 
+        print("The norm of I1m1 is", norm(Im1))
+        Em1, Pm1, Qm1 = self.E0withEnd.IdealToIsogeny(Im1)
+        Pm1d, Qm1d = self._deterministic_torsion_basis(Em1, e)
+        Mm1 = util.BiDLP_matrix_power_two(Pm1d, Qm1d, Ppk, Qpk, e)
+        print("The norm of I2m2 is", norm(Im2))
+        Em2, Pm2, Qm2 = self.E0withEnd.IdealToIsogeny(Im2)
+
 
     @staticmethod
     def _deterministic_torsion_basis(E, e):
