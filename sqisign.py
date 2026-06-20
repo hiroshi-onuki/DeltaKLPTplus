@@ -13,14 +13,27 @@ import quaternion
 import util
 
 class SQIsign:
-    def __init__(self, p, e, f, lam):
-        E0withEnd = special_curve.SpecialSuperSingularCurve(p, e, f)
-        self.E0withEnd = E0withEnd
-        Dmix = p**2 + 2
-        while not is_prime(Dmix):
-            Dmix += 2
-        self.Dmix = Dmix
-        self.lam = lam
+    def __init__(self, sec_level):
+
+        # NIST security level 1 parameters (lam = 128)
+        if sec_level == 1:
+            # use Sage Integers (ZZ) so downstream exact arithmetic (e.g. the
+            # pairing exponent in special_curve) is not turned into Python floats
+            self.e = ZZ(248)
+            self.f = ZZ(5)
+            p = 2**self.e * self.f - 1
+            assert is_prime(p)
+            self.p = p
+            self.E0withEnd = special_curve.SpecialSuperSingularCurve(p, self.e, self.f)
+            Dmix = p**2 + 2
+            while not is_prime(Dmix):
+                Dmix += 2
+            self.Dmix = Dmix    # the degree of phi_sk and phi_com, which satisfies the mixing property in the supersingular isogeny graph
+            self.Dchl = ZZ(128)
+            self.EISN_norm_bound = ZZ(2)**260
+            self.e_rsp = ZZ(1050)
+        else:
+            raise ValueError("Unsupported security level")
 
     def Keygen(self):
         Isk, _ = quaternion.RandomFixedNormIdeal(self.E0withEnd.order, self.Dmix)
@@ -34,7 +47,7 @@ class SQIsign:
     def Hash(self, msg):
         h = hashlib.sha256(msg)
         c = util.bytes_to_integer(h.digest())
-        return c % 2**self.lam
+        return c % 2**self.Dchl
 
     def Sign(self, sk, pk, msg):
         Isk, Msk = sk
@@ -46,15 +59,13 @@ class SQIsign:
         Icom, _ = quaternion.RandomFixedNormIdeal(self.E0withEnd.order, self.Dmix)
         Ecom, Pcom, Qcom = self.E0withEnd.IdealToIsogeny(Icom)
 
-        c = self.Hash(msg + util.field_element_to_bytes(Ecom.j_invariant(), self.lam//2) + util.field_element_to_bytes(Epk.j_invariant(), self.lam//2))
+        c = self.Hash(msg + util.field_element_to_bytes(Ecom.j_invariant(), self.Dchl//2) + util.field_element_to_bytes(Epk.j_invariant(), self.Dchl//2))
         a, b = Msk.transpose() * vector([1, c])
-        Ichl = self.E0withEnd.KernelToIdeal(a, b, self.lam)
+        Ichl = self.E0withEnd.KernelToIdeal(a, b, self.Dchl)
         IskIchl = Isk.intersection(Ichl)
 
-        print("Starting deltaKLPTforSign...")
-        IcomIrsp, _ = quaternion.deltaKLPTforSign(Icom, IskIchl, 2, 1050, 2**260) # tmp!
-        print("deltaKLPTforSign completed.")
-        N = norm(IcomIrsp) / 2**1050
+        IcomIrsp, _ = quaternion.deltaKLPTforSign(Icom, IskIchl, 2, self.e_rsp, self.EISN_norm_bound) # tmp!
+        N = norm(IcomIrsp) / 2**self.e_rsp
         Icom_d = IcomIrsp + O0 * N
         assert Icom.right_order().isomorphism_to(Icom_d.right_order()) != None
         O = IcomIrsp.right_order()
@@ -65,7 +76,7 @@ class SQIsign:
         alpha *= ZZ(sqrt(n))     # scale alpha so that norm(Iall) = norm(alpha)
         assert Iall == O0 * alpha
         assert alpha/2 not in O0
-        e0 = self.lam + 1050 - 4*e
+        e0 = self.Dchl + self.e_rsp - 4*e
         
         Im0p2 = Iall + O0 * 2**e0
         

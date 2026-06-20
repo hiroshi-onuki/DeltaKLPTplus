@@ -6,7 +6,7 @@ f = 5
 p = 2^e * f - 1  
 lam = 128
 
-SQIsign_instance = SQIsign(p, e, f, lam)
+SQIsign_instance = SQIsign(1)
 E0withEnd = SQIsign_instance.E0withEnd
 
 for _ in range(10):

@@ -138,7 +138,7 @@ class SpecialSuperSingularCurve:
             if not (Pim + Qim == PQim or Pim + Qim == -PQim):
                 Qim = -Qim
             assert Pim + Qim == PQim or Pim + Qim == -PQim
-            exp = (self.p**2 - 1) / 2**e
+            exp = (self.p**2 - 1) // 2**e
             tPimQim = tate_pairing_pari(Pim, Qim, 2**e)**exp
             if tPimQim == tP0Q0d1:
                 EI = Phi.codomain()[idx]
