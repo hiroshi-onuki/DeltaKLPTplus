@@ -6,6 +6,7 @@ from sage.all import (
     EllipticCurve,
     vector,
     norm,
+    inverse_mod,
 )
 import hashlib
 import special_curve
@@ -29,8 +30,8 @@ class SQIsign:
             while not is_prime(Dmix):
                 Dmix += 2
             self.Dmix = Dmix    # the degree of phi_sk and phi_com, which satisfies the mixing property in the supersingular isogeny graph
-            self.Dchl = ZZ(128)
             self.EISN_norm_bound = ZZ(2)**260
+            self.e_chl = ZZ(128)
             self.e_rsp = ZZ(1050)
         else:
             raise ValueError("Unsupported security level")
@@ -47,7 +48,7 @@ class SQIsign:
     def Hash(self, msg):
         h = hashlib.sha256(msg)
         c = util.bytes_to_integer(h.digest())
-        return c % 2**self.Dchl
+        return c % 2**self.e_chl
 
     def Sign(self, sk, pk, msg):
         Isk, Msk = sk
@@ -59,9 +60,9 @@ class SQIsign:
         Icom, _ = quaternion.RandomFixedNormIdeal(self.E0withEnd.order, self.Dmix)
         Ecom, Pcom, Qcom = self.E0withEnd.IdealToIsogeny(Icom)
 
-        c = self.Hash(msg + util.field_element_to_bytes(Ecom.j_invariant(), self.Dchl//2) + util.field_element_to_bytes(Epk.j_invariant(), self.Dchl//2))
-        a, b = Msk.transpose() * vector([1, c])
-        Ichl = self.E0withEnd.KernelToIdeal(a, b, self.Dchl)
+        chl = self.Hash(msg + util.field_element_to_bytes(Ecom.j_invariant(), self.e_chl//2) + util.field_element_to_bytes(Epk.j_invariant(), self.e_chl//2))
+        a, b = vector([1, chl]) * Msk.inverse()
+        Ichl = self.E0withEnd.KernelToIdeal(a, b, self.e_chl)
         IskIchl = Isk.intersection(Ichl)
 
         IcomIrsp, _ = quaternion.deltaKLPTforSign(Icom, IskIchl, 2, self.e_rsp, self.EISN_norm_bound) # tmp!
@@ -76,7 +77,7 @@ class SQIsign:
         alpha *= ZZ(sqrt(n))     # scale alpha so that norm(Iall) = norm(alpha)
         assert Iall == O0 * alpha
         assert alpha/2 not in O0
-        e0 = self.Dchl + self.e_rsp - 4*e
+        e0 = self.e_chl + self.e_rsp - 4*e
         
         Im0p2 = Iall + O0 * 2**e0
         
@@ -96,12 +97,29 @@ class SQIsign:
         assert Im1Im1p2f.right_order().isomorphism_to(Im2.intersection(Im2p2b).right_order()) != None
         assert Im2Im2p2f.right_order().isomorphism_to(Icom.right_order()) != None
 
+        v0 = self.E0withEnd.IdealToKernel(Im0p2, e0)
+        v0 = v0 * Msk % 2**e0
+        c0 = v0[1] * inverse_mod(v0[0], 2**e0) % 2**e0
+        assert c0 % 2**self.e_chl == chl
+
         print("The norm of I1m1 is", norm(Im1))
         Em1, Pm1, Qm1 = self.E0withEnd.IdealToIsogeny(Im1)
         Pm1d, Qm1d = self._deterministic_torsion_basis(Em1, e)
-        Mm1 = util.BiDLP_matrix_power_two(Pm1d, Qm1d, Ppk, Qpk, e)
+        Mm1 = util.BiDLP_matrix_power_two(Pm1, Qm1, Pm1d, Qm1d, e)
+        v1dual = self.E0withEnd.IdealToKernel(Im1p2b, e)
+        v1dual = v1dual * Mm1 % 2**e
+        K1dual = v1dual[0] * Pm1d + v1dual[1] * Qm1d
+        # for check
+        K = 2**(e-e0) * (Ppk + c0 * Qpk)
+        Echl = Epk.isogeny(K, model='montgomery', algorithm='factored').codomain()
+        Echld = Em1.isogeny(K1dual, model='montgomery', algorithm='factored').codomain()
+        assert Echld.j_invariant() == Echl.j_invariant()
+
+
         print("The norm of I2m2 is", norm(Im2))
         Em2, Pm2, Qm2 = self.E0withEnd.IdealToIsogeny(Im2)
+        Pm2d, Qm2d = self._deterministic_torsion_basis(Em2, e)
+        Mm2 = util.BiDLP_matrix_power_two(Pm2, Qm2, Pm2d, Qm2d, e)
 
 
     @staticmethod

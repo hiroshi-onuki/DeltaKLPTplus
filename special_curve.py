@@ -107,7 +107,7 @@ class SpecialSuperSingularCurve:
 
         """
         compute beta1, beta2, gamma s.t.
-        beta1 = hat{phi_I} * phi_1, beta2 = hat{phi_I} * phi_2,
+        beta1 = hat{phi_1} * phi_I, beta2 = hat{phi_2} * phi_I,
         gamma = hat{phi_2} * phi_1,
         where phi_I is the isogeny corresponding to I,
         deg(phi_1) + deg(phi_2) = 2^(e-2).
@@ -126,7 +126,7 @@ class SpecialSuperSingularCurve:
         K1 = CouplePoint(P1, P2)
         K2 = CouplePoint(Q1, Q2)
         Phi = EllipticProductIsogeny((K1, K2), e-2)
-        P0, Q0 = self.quaternion_action(beta1.conjugate()) # P0 = hat{phi_1}*phi_I(P), Q0 = hat{phi_1}*phi_I(Q)
+        P0, Q0 = self.quaternion_action(beta1) # P0 = hat{phi_1}*phi_I(P), Q0 = hat{phi_1}*phi_I(Q)
         image1 = Phi(CouplePoint(P0, E0(0)))
         image2 = Phi(CouplePoint(Q0, E0(0)))
         image_sum = Phi(CouplePoint(P0 + Q0, E0(0)))
