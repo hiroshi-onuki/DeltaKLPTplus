@@ -4,6 +4,25 @@ from sage.all import (
 )
 from utilities.discrete_log import BiDLP_power_two
 
+def fp2_order_key(z):
+    """
+    Sort key for the lexicographic ordering on F_{p^2} = F_p(i) of Eq. (3) of the
+    SQIsign specification: a0 + a1*i is ordered by (a0, a1) lifted to [0, p-1].
+    """
+    c = z.list()
+    z0 = ZZ(c[0]) if len(c) > 0 else ZZ(0)
+    z1 = ZZ(c[1]) if len(c) > 1 else ZZ(0)
+    return (z0, z1)
+
+def deterministic_sqrt(a):
+    """
+    A deterministic square root in F_{p^2}. Sage's finite-field sqrt is randomized
+    (it returns r or -r unpredictably), so we take one square root and return
+    whichever of {r, -r} is smaller under the ordering of fp2_order_key.
+    """
+    r = a.sqrt()
+    return min(r, -r, key=fp2_order_key)
+
 def BiDLP_matrix_power_two(R, S, P, Q, e):
     """
     return the matrix [[a, b], [c, d]] such that

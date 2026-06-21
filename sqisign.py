@@ -234,45 +234,6 @@ class SQIsign:
         return chl == c0 % 2**self.e_chl
 
     @staticmethod
-    def _Fp2_sqrt(a):
-        """
-        Canonical square root in F_{p^2} = F_p(i) with i^2 = -1 and p = 3 (mod 4),
-        following Eqs. (1)-(2) of the SQIsign specification. This is deterministic,
-        unlike Sage's randomized finite-field sqrt, so it can be used for the
-        canonical normalization of curves.
-        """
-        F = a.parent()
-        p = F.characteristic()
-        Fp = F.base_ring()
-        i = F.gen()
-        c = a.list()
-        a0 = Fp(c[0]) if len(c) > 0 else Fp(0)
-        a1 = Fp(c[1]) if len(c) > 1 else Fp(0)
-        if a1 == 0:
-            # a lies in F_p
-            if a0 == 0 or a0**((p - 1)//2) == 1:      # a0 is a square in F_p
-                return F(a0**((p + 1)//4))
-            return F((-a0)**((p + 1)//4)) * i          # -a0 is a square: sqrt(a) = sqrt(-a0)*i
-        n = a0**2 + a1**2                              # norm N(a) in F_p (a square)
-        sn = n**((p + 1)//4)                           # canonical F_p square root of the norm
-        half = Fp(1) / 2
-        t = (a0 + sn) * half
-        if not (t != 0 and t**((p - 1)//2) == 1):      # exactly one candidate is a square in F_p
-            t = (a0 - sn) * half
-        x0 = t**((p + 1)//4)
-        x1 = a1 / (2 * x0)
-        return F(x0) + F(x1) * i
-
-    @staticmethod
-    def _Fp2_key(z):
-        """Sort key for the lexicographic ordering of Eq. (3): a0 + a1*i ordered by
-        (a0, a1) lifted to [0, p-1]."""
-        c = z.list()
-        z0 = ZZ(c[0]) if len(c) > 0 else ZZ(0)
-        z1 = ZZ(c[1]) if len(c) > 1 else ZZ(0)
-        return (z0, z1)
-
-    @staticmethod
     def MontgomeryNormalize(A):
         """
         Algorithm 1 (MontgomeryNormalize) of the SQIsign specification
@@ -288,19 +249,19 @@ class SQIsign:
         F = A.parent()
         i = F.gen()
         A2 = A**2
-        s = SQIsign._Fp2_sqrt(A2 - 4)
+        s = util.deterministic_sqrt(A2 - 4)
         u = (9 - A2) / 2
         t = (A**3 - 3*A) / (2 * s)
         # The three values Z0, Z1, Z2 are the squares of the six A-invariants.
-        Z = min((A2, u + t, u - t), key=SQIsign._Fp2_key)
-        Aprime = SQIsign._Fp2_sqrt(Z)
+        Z = min((A2, u + t, u - t), key=util.fp2_order_key)
+        Aprime = util.deterministic_sqrt(Z)
         if Aprime == A:
             R, U = F(0), F(1)
         elif Aprime == -A:
             R, U = F(0), i
         else:
             R = (A2 + Aprime**2 - 6) * A / (A2 + 2*Aprime**2 - 9)
-            U = SQIsign._Fp2_sqrt(Aprime / (A - 3*R))
+            U = util.deterministic_sqrt(Aprime / (A - 3*R))
         return Aprime, R, U
 
     @staticmethod
