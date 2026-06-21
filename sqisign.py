@@ -40,6 +40,7 @@ class SQIsign:
     def Keygen(self):
         Isk, _ = quaternion.RandomFixedNormIdeal(self.E0withEnd.order, self.Dmix)
         Epk, Psk, Qsk = self.E0withEnd.IdealToIsogeny(Isk)
+        Epk, (Psk, Qsk) = self._normalize_curve(Epk, (Psk, Qsk))
         Ppk, Qpk = self._deterministic_torsion_basis(Epk, self.E0withEnd.e)
         Msk = util.BiDLP_matrix_power_two(Psk, Qsk, Ppk, Qpk, self.E0withEnd.e)
         sk = (Isk, Msk)
@@ -59,7 +60,7 @@ class SQIsign:
         Ppk, Qpk = self._deterministic_torsion_basis(Epk, e)
 
         Icom, _ = quaternion.RandomFixedNormIdeal(self.E0withEnd.order, self.Dmix)
-        Ecom, Pcom, Qcom = self.E0withEnd.IdealToIsogeny(Icom)
+        Ecom, _, _ = self.E0withEnd.IdealToIsogeny(Icom)
 
         chl = self.Hash(msg + util.j_invariant_to_bytes(Ecom) + util.j_invariant_to_bytes(Epk))
         a, b = vector([1, chl]) * Msk.inverse()
@@ -104,6 +105,7 @@ class SQIsign:
         assert c0 % 2**self.e_chl == chl
 
         Em1, Pm1, Qm1 = self.E0withEnd.IdealToIsogeny(Im1)
+        Em1, (Pm1, Qm1) = self._normalize_curve(Em1, (Pm1, Qm1))
         Pm1d, Qm1d = self._deterministic_torsion_basis(Em1, e)
         Mm1 = util.BiDLP_matrix_power_two(Pm1, Qm1, Pm1d, Qm1d, e)
         v1dual = self.E0withEnd.IdealToKernel(Im1p2b, e)
@@ -124,6 +126,7 @@ class SQIsign:
         K1 = phi(evalP)
         assert K1.order() == 2**e
         Em1b = phi.codomain()
+        Em1b, (K1,) = self._normalize_curve(Em1b, (K1,))
         Pm1b, Qm1b = self._deterministic_torsion_basis(Em1b, e)
         a, b = utilities.discrete_log.BiDLP_power_two(K1, Pm1b, Qm1b, e, None)
         if a % 2 == 0:
@@ -152,6 +155,7 @@ class SQIsign:
             isP1f = False
 
         Em2, Pm2, Qm2 = self.E0withEnd.IdealToIsogeny(Im2)
+        Em2, (Pm2, Qm2) = self._normalize_curve(Em2, (Pm2, Qm2))
         Pm2d, Qm2d = self._deterministic_torsion_basis(Em2, e)
         Mm2 = util.BiDLP_matrix_power_two(Pm2, Qm2, Pm2d, Qm2d, e)
         v2dual = self.E0withEnd.IdealToKernel(Im2p2b, e)
@@ -175,6 +179,7 @@ class SQIsign:
         K2 = phi(evalP)
         assert K2.order() == 2**e
         Em2b = phi.codomain()
+        Em2b, (K2,) = self._normalize_curve(Em2b, (K2,))
         Pm2b, Qm2b = self._deterministic_torsion_basis(Em2b, e)
         a, b = utilities.discrete_log.BiDLP_power_two(K2, Pm2b, Qm2b, e, None)
         if a % 2 == 0:
@@ -223,6 +228,7 @@ class SQIsign:
         E = Epk.isogeny(K, model='montgomery', algorithm='factored').codomain()
         print("E.j_invariant() = ", E.j_invariant())
         for (c, isP) in [(c1b, isP1b), (c1f, isP1f), (c2b, isP2b), (c2f, isP2f)]:
+            E = self._normalize_curve(E)
             P, Q = self._deterministic_torsion_basis(E, e)
             if isP:
                 K = c * P + Q
@@ -234,7 +240,7 @@ class SQIsign:
         return chl == c0 % 2**self.e_chl
 
     @staticmethod
-    def MontgomeryNormalize(A):
+    def _normalize_curve(E, points=()):
         """
         Algorithm 1 (MontgomeryNormalize) of the SQIsign specification
         (https://sqisign.org/spec/sqisign-20230601.pdf, Section 2.2.1.1).
@@ -246,6 +252,7 @@ class SQIsign:
 
             E_A -> E_{A'},   (x, y) |-> (U^2 * (x + R), U^3 * y).
         """
+        A = E.a2()
         F = A.parent()
         i = F.gen()
         A2 = A**2
@@ -255,6 +262,10 @@ class SQIsign:
         # The three values Z0, Z1, Z2 are the squares of the six A-invariants.
         Z = min((A2, u + t, u - t), key=util.fp2_order_key)
         Aprime = util.deterministic_sqrt(Z)
+        En = EllipticCurve(F, [0, Aprime, 0, 1, 0])
+        if len(points) == 0:
+            return En
+
         if Aprime == A:
             R, U = F(0), F(1)
         elif Aprime == -A:
@@ -262,19 +273,17 @@ class SQIsign:
         else:
             R = (A2 + Aprime**2 - 6) * A / (A2 + 2*Aprime**2 - 9)
             U = util.deterministic_sqrt(Aprime / (A - 3*R))
-        return Aprime, R, U
+        U2, U3 = U**2, U**3
+        return En, [En(U2 * (T[0] + R), U3 * T[1]) for T in points]
 
     @staticmethod
     def _deterministic_torsion_basis(E, e):
         """
         Compute a deterministic basis of E[2^e] for a supersingular Montgomery curve.
 
-        The curve is first normalized with MontgomeryNormalize (Algorithm 1) so
-        that the basis depends only on the F_{p^2}-isomorphism class and not on the
-        particular Montgomery model: signing and verification reach the same curves
-        through different isogeny computations, which generally yields different
-        (but isomorphic) Montgomery A-invariants. The basis is computed on the
-        canonical model and mapped back to E via the normalization isomorphism.
+        E is assumed to already be in canonical form (see MontgomeryNormalize): the
+        caller must normalize the curve beforehand so that the basis depends only on
+        the F_{p^2}-isomorphism class. No isomorphism is applied here.
         """
         F = E.base_ring()
         p = F.characteristic()
@@ -284,33 +293,25 @@ class SQIsign:
         assert A != 0
         assert E == EllipticCurve(F, [0, A, 0, 1, 0]) # y^2 = x^3 + A*x^2 + x
 
-        # normalize to the canonical model E_{An}
-        An, R, U = SQIsign.MontgomeryNormalize(A)
-        En = EllipticCurve(F, [0, An, 0, 1, 0])
-
         h = 0
-        if An.is_square():
+        if A.is_square():
             # We need the denominator 1 + i*h to be a non-square in F_{p^2},
             # which holds iff its norm 1 + h^2 is a non-square in F_p.
             while True:
                 h += 1
-                xP = -1/(1 + i*h)*An
+                xP = -1/(1 + i*h)*A
                 if kronecker(1 + h**2, p) == 1:
                     continue
-                if (xP**3 + An*xP**2 + xP).is_square():
+                if (xP**3 + A*xP**2 + xP).is_square():
                     break
         else:
             while True:
                 h += 1
-                xP = h*An
-                if (xP**3 + An*xP**2 + xP).is_square():
+                xP = h*A
+                if (xP**3 + A*xP**2 + xP).is_square():
                     break
         cofactor = (p + 1) // (2**e)
-        P = cofactor * En.lift_x(xP)
-        Q = cofactor * En.lift_x(-xP - An)
+        P = cofactor * E.lift_x(xP)
+        Q = cofactor * E.lift_x(-xP - A)
         assert P.weil_pairing(Q, 2**e)**(2**(e - 1)) == -1
-        # map the basis back to E through the inverse of (x, y) |-> (U^2(x+R), U^3 y)
-        U2, U3 = U**2, U**3
-        P = E(P[0]/U2 - R, P[1]/U3)
-        Q = E(Q[0]/U2 - R, Q[1]/U3)
         return P, Q
