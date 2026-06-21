@@ -12,6 +12,7 @@ import hashlib
 import special_curve
 import quaternion
 import util
+import utilities.discrete_log
 
 class SQIsign:
     def __init__(self, sec_level):
@@ -83,14 +84,14 @@ class SQIsign:
         
         Im1Im1p2f = Iall + O0 * 2**(e0 + 2*e) * norm(Isk)
         Im1 = Im1Im1p2f + O0 * 2**(e0 + e) * norm(Isk)
-        Im1, beta, nIm1 = quaternion.EquivalentRandomPrimeIdeal(Im1)
-        Im1p2f = Im1Im1p2f * (beta.conjugate() / nIm1) + O0 * 2**e
+        Im1, beta, _ = quaternion.EquivalentRandomPrimeIdeal(Im1)
+        Im1p2f = Im1Im1p2f * (beta.conjugate() / (2**(e0 + e)*norm(Isk))) + O0 * 2**e
         Im1p2b = O0 * beta.conjugate() + O0 * 2**e
 
         Im2Im2p2f = Iall + O0 * 2**(e0 + 4*e) * norm(Isk)
         Im2 = Im2Im2p2f + O0 * 2**(e0 + 3*e) * norm(Isk)
-        Im2, beta, nIm2 = quaternion.EquivalentRandomPrimeIdeal(Im2)
-        Im2p2f = Im2Im2p2f * (beta.conjugate() / nIm2) + O0 * 2**e
+        Im2, beta, _ = quaternion.EquivalentRandomPrimeIdeal(Im2)
+        Im2p2f = Im2Im2p2f * (beta.conjugate() / (2**(e0 + 3*e)*norm(Isk))) + O0 * 2**e
         Im2p2b = O0 * beta.conjugate() + O0 * 2**e
 
         assert Isk.intersection(Im0p2).right_order().isomorphism_to(Im1.intersection(Im1p2b).right_order()) != None
@@ -102,25 +103,86 @@ class SQIsign:
         c0 = v0[1] * inverse_mod(v0[0], 2**e0) % 2**e0
         assert c0 % 2**self.e_chl == chl
 
-        print("The norm of I1m1 is", norm(Im1))
         Em1, Pm1, Qm1 = self.E0withEnd.IdealToIsogeny(Im1)
         Pm1d, Qm1d = self._deterministic_torsion_basis(Em1, e)
         Mm1 = util.BiDLP_matrix_power_two(Pm1, Qm1, Pm1d, Qm1d, e)
         v1dual = self.E0withEnd.IdealToKernel(Im1p2b, e)
         v1dual = v1dual * Mm1 % 2**e
         K1dual = v1dual[0] * Pm1d + v1dual[1] * Qm1d
+        if v1dual[0] % 2 == 0:
+            evalP = Pm1d
+        else:
+            evalP = Qm1d
         # for check
         K = 2**(e-e0) * (Ppk + c0 * Qpk)
         Echl = Epk.isogeny(K, model='montgomery', algorithm='factored').codomain()
         Echld = Em1.isogeny(K1dual, model='montgomery', algorithm='factored').codomain()
         assert Echld.j_invariant() == Echl.j_invariant()
+        # end
+        phi = Em1.isogeny(K1dual, model='montgomery', algorithm='factored')
+        K1 = phi(evalP)
+        assert K1.order() == 2**e
+        Em1b = phi.codomain()
+        Pm1b, Qm1b = self._deterministic_torsion_basis(Em1b, e)
+        a, b = utilities.discrete_log.BiDLP_power_two(K1, Pm1b, Qm1b, e, None)
+        if a % 2 == 0:
+            c1b = a * inverse_mod(b, 2**e) % 2**e
+            isP1b = True
+        else:
+            c1b = b * inverse_mod(a, 2**e) % 2**e
+            isP1b = False
+        v1f = self.E0withEnd.IdealToKernel(Im1p2f, e)
+        v1f = v1f * Mm1 % 2**e
+        a, b = v1f
+        if a % 2 == 0:
+            c1f = a * inverse_mod(b, 2**e) % 2**e
+            isP1f = True
+        else:
+            c1f = b * inverse_mod(a, 2**e) % 2**e
+            isP1f = False
 
-
-        print("The norm of I2m2 is", norm(Im2))
         Em2, Pm2, Qm2 = self.E0withEnd.IdealToIsogeny(Im2)
         Pm2d, Qm2d = self._deterministic_torsion_basis(Em2, e)
         Mm2 = util.BiDLP_matrix_power_two(Pm2, Qm2, Pm2d, Qm2d, e)
-
+        v2dual = self.E0withEnd.IdealToKernel(Im2p2b, e)
+        v2dual = v2dual * Mm2 % 2**e
+        K2dual = v2dual[0] * Pm2d + v2dual[1] * Qm2d
+        if v2dual[0] % 2 == 0:
+            evalP = Pm2d
+        else:
+            evalP = Qm2d
+        # for check
+        if isP1f:
+            K = c1f * Pm1d + Qm1d
+        else:
+            K = Pm1d + c1f * Qm1d
+        Em1f = Em1.isogeny(K, model='montgomery', algorithm='factored').codomain()
+        Em2b = Em2.isogeny(K2dual, model='montgomery', algorithm='factored').codomain()
+        assert Em2b.j_invariant() == Em1f.j_invariant()
+        # end
+        phi = Em2.isogeny(K2dual, model='montgomery', algorithm='factored')
+        K2 = phi(evalP)
+        assert K2.order() == 2**e
+        Em2b = phi.codomain()
+        Pm2b, Qm2b = self._deterministic_torsion_basis(Em2b, e)
+        a, b = utilities.discrete_log.BiDLP_power_two(K2, Pm2b, Qm2b, e, None)
+        if a % 2 == 0:
+            c2b = a * inverse_mod(b, 2**e) % 2**e
+            isP2b = True
+        else:
+            c2b = b * inverse_mod(a, 2**e) % 2**e
+            isP2b = False
+        v2f = self.E0withEnd.IdealToKernel(Im2p2f, e)
+        v2f = v2f * Mm2 % 2**e
+        a, b = v2f
+        if a % 2 == 0:
+            c2f = a * inverse_mod(b, 2**e) % 2**e
+            isP2f = True
+        else:
+            c2f = b * inverse_mod(a, 2**e) % 2**e
+            isP2f = False
+        
+        return (c0, c1b, c1f, c2b, c2f, isP1b, isP1f, isP2b, isP2f)
 
     @staticmethod
     def _deterministic_torsion_basis(E, e):

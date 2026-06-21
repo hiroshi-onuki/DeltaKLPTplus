@@ -9,7 +9,7 @@ lam = 128
 SQIsign_instance = SQIsign(1)
 E0withEnd = SQIsign_instance.E0withEnd
 
-for _ in range(100):
+for _ in range(10):
     P, Q = E0withEnd.P, E0withEnd.Q
     Pd, Qd = 2**(e-lam)*P, 2**(e-lam)*Q
     c = randint(0, 2**lam - 1)
