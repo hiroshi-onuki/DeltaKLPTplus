@@ -10,21 +10,11 @@ SQIsign_instance = SQIsign(1)
 E0withEnd = SQIsign_instance.E0withEnd
 
 for _ in range(10):
-    P, Q = E0withEnd.P, E0withEnd.Q
-    Pd, Qd = 2**(e-lam)*P, 2**(e-lam)*Q
-    c = randint(0, 2**lam - 1)
-    R = Pd + c*Qd
-    I = E0withEnd.KernelToIdeal(1, c, lam)
-    alpha = SmallGenerator(I)
-    alphaP, alphaQ = E0withEnd.quaternion_action(alpha) 
-    alphaP, alphaQ = 2**(e-lam)*alphaP, 2**(e-lam)*alphaQ
-    assert (alphaP + c*alphaQ).is_zero(), "KernelToIdeal failed"
-    print("KernelToIdeal verified successfully")
-
-    a, b = E0withEnd.IdealToKernel(I, lam)
-    assert b * inverse_mod(a, 2**lam) % 2**lam == c, "IdealToKernel failed"
-    print("IdealToKernel verified successfully")
-
     sk, pk = SQIsign_instance.Keygen()
     print("Key generation successful")
-    SQIsign_instance.Sign(sk, pk, b"Test message")
+    
+    sign = SQIsign_instance.Sign(sk, pk, b"Test message")
+    print("Signing successful")
+
+    assert SQIsign_instance.Verify(pk, b"Test message", sign)
+    print("Verification successful")

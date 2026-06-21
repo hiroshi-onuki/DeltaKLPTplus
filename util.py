@@ -49,3 +49,12 @@ def field_element_from_bytes(Fp2, x_bytes, byte_len):
     a_int = bytes_to_integer(a_bytes)
     b_int = bytes_to_integer(b_bytes)
     return Fp2([a_int, b_int])
+
+def j_invariant_to_bytes(E):
+    """
+    Represent the j-invariant of an elliptic curve E as bytes
+    """
+    p = E.base_ring().characteristic()
+    byte_len = (len(bin(p)) - 2 + 7) // 8
+    j = E.j_invariant()
+    return field_element_to_bytes(j, byte_len)

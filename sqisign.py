@@ -61,7 +61,7 @@ class SQIsign:
         Icom, _ = quaternion.RandomFixedNormIdeal(self.E0withEnd.order, self.Dmix)
         Ecom, Pcom, Qcom = self.E0withEnd.IdealToIsogeny(Icom)
 
-        chl = self.Hash(msg + util.field_element_to_bytes(Ecom.j_invariant(), self.e_chl//2) + util.field_element_to_bytes(Epk.j_invariant(), self.e_chl//2))
+        chl = self.Hash(msg + util.j_invariant_to_bytes(Ecom) + util.j_invariant_to_bytes(Epk))
         a, b = vector([1, chl]) * Msk.inverse()
         Ichl = self.E0withEnd.KernelToIdeal(a, b, self.e_chl)
         IskIchl = Isk.intersection(Ichl)
@@ -183,6 +183,24 @@ class SQIsign:
             isP2f = False
         
         return (c0, c1b, c1f, c2b, c2f, isP1b, isP1f, isP2b, isP2f)
+
+    def Verify(self, pk, msg, sign):
+        e = self.E0withEnd.e
+        e0 = self.e_chl + self.e_rsp - 4*e
+        c0, c1b, c1f, c2b, c2f, isP1b, isP1f, isP2b, isP2f = sign
+        Epk = pk
+        Ppk, Qpk = self._deterministic_torsion_basis(Epk, self.E0withEnd.e)
+        K = 2**(e - e0) * (Ppk + c0 * Qpk)
+        E = Epk.isogeny(K, model='montgomery', algorithm='factored').codomain()
+        for (c, isP) in [(c1b, isP1b), (c1f, isP1f), (c2b, isP2b), (c2f, isP2f)]:
+            P, Q = self._deterministic_torsion_basis(E, e)
+            if isP:
+                K = c * P + Q
+            else:
+                K = P + c * Q
+            E = E.isogeny(K, model='montgomery', algorithm='factored').codomain()
+        chl = self.Hash(msg + util.j_invariant_to_bytes(E) + util.j_invariant_to_bytes(Epk))
+        return chl == c0 % 2**self.e_chl
 
     @staticmethod
     def _deterministic_torsion_basis(E, e):
