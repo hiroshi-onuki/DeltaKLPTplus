@@ -78,96 +78,82 @@ class SQIsign:
         assert Iall == O0 * alpha
         assert alpha/2 not in O0
         e0 = self.e_chl + self.e_rsp - 4*e
-        
+
+        # challenge coordinate (carries chl in its low e_chl bits)
         Im0p2 = Iall + O0 * 2**e0
-        
-        Im1Im1p2f = Iall + O0 * 2**(e0 + 2*e) * norm(Isk)
-        Im1 = Im1Im1p2f + O0 * 2**(e0 + e) * norm(Isk)
-        Im1, beta, _ = quaternion.EquivalentRandomPrimeIdeal(Im1)
-        Im1p2f = Im1Im1p2f * (beta.conjugate() / (2**(e0 + e)*norm(Isk))) + O0 * 2**e
-        Im1p2b = O0 * beta.conjugate() + O0 * 2**e
-
-        Im2Im2p2f = Iall + O0 * 2**(e0 + 4*e) * norm(Isk)
-        Im2 = Im2Im2p2f + O0 * 2**(e0 + 3*e) * norm(Isk)
-        Im2, beta, _ = quaternion.EquivalentRandomPrimeIdeal(Im2)
-        Im2p2f = Im2Im2p2f * (beta.conjugate() / (2**(e0 + 3*e)*norm(Isk))) + O0 * 2**e
-        Im2p2b = O0 * beta.conjugate() + O0 * 2**e
-
         v0 = self.E0withEnd.IdealToKernel(Im0p2, e0)
         v0 = v0 * Msk % 2**e0
         c0 = v0[1] * inverse_mod(v0[0], 2**e0) % 2**e0
         assert c0 % 2**self.e_chl == chl
         c0without_chl = (c0 - chl) // 2**self.e_chl
 
-        Em1, Pm1, Qm1 = self.E0withEnd.IdealToIsogeny(Im1)
-        Em1, (Pm1, Qm1) = self._normalize_curve(Em1, (Pm1, Qm1))
-        Pm1d, Qm1d = self._deterministic_torsion_basis(Em1, e)
-        Mm1 = util.BiDLP_matrix_power_two(Pm1, Qm1, Pm1d, Qm1d, e)
-        v1dual = self.E0withEnd.IdealToKernel(Im1p2b, e)
-        v1dual = v1dual * Mm1 % 2**e
-        K1dual = v1dual[0] * Pm1d + v1dual[1] * Qm1d
-        if v1dual[0] % 2 == 0:
-            evalP = Pm1d
-        else:
-            evalP = Qm1d
-        phi = Em1.isogeny(K1dual, model='montgomery', algorithm='factored')
-        K1 = phi(evalP)
-        assert K1.order() == 2**e
-        Em1b = phi.codomain()
-        Em1b, (K1,) = self._normalize_curve(Em1b, (K1,))
-        Pm1b, Qm1b = self._deterministic_torsion_basis(Em1b, e)
-        a, b = utilities.discrete_log.BiDLP_power_two(K1, Pm1b, Qm1b, e, None)
-        if a % 2 == 0:
-            c1b = a * inverse_mod(b, 2**e) % 2**e
-            isP1b = True
-        else:
-            c1b = b * inverse_mod(a, 2**e) % 2**e
-            isP1b = False
-        v1f = self.E0withEnd.IdealToKernel(Im1p2f, e)
-        v1f = v1f * Mm1 % 2**e
-        a, b = v1f
-        if a % 2 == 0:
-            c1f = a * inverse_mod(b, 2**e) % 2**e
-            isP1f = True
-        else:
-            c1f = b * inverse_mod(a, 2**e) % 2**e
-            isP1f = False
-
-        Em2, Pm2, Qm2 = self.E0withEnd.IdealToIsogeny(Im2)
-        Em2, (Pm2, Qm2) = self._normalize_curve(Em2, (Pm2, Qm2))
-        Pm2d, Qm2d = self._deterministic_torsion_basis(Em2, e)
-        Mm2 = util.BiDLP_matrix_power_two(Pm2, Qm2, Pm2d, Qm2d, e)
-        v2dual = self.E0withEnd.IdealToKernel(Im2p2b, e)
-        v2dual = v2dual * Mm2 % 2**e
-        K2dual = v2dual[0] * Pm2d + v2dual[1] * Qm2d
-        if v2dual[0] % 2 == 0:
-            evalP = Pm2d
-        else:
-            evalP = Qm2d
-        phi = Em2.isogeny(K2dual, model='montgomery', algorithm='factored')
-        K2 = phi(evalP)
-        assert K2.order() == 2**e
-        Em2b = phi.codomain()
-        Em2b, (K2,) = self._normalize_curve(Em2b, (K2,))
-        Pm2b, Qm2b = self._deterministic_torsion_basis(Em2b, e)
-        a, b = utilities.discrete_log.BiDLP_power_two(K2, Pm2b, Qm2b, e, None)
-        if a % 2 == 0:
-            c2b = a * inverse_mod(b, 2**e) % 2**e
-            isP2b = True
-        else:
-            c2b = b * inverse_mod(a, 2**e) % 2**e
-            isP2b = False
-        v2f = self.E0withEnd.IdealToKernel(Im2p2f, e)
-        v2f = v2f * Mm2 % 2**e
-        a, b = v2f
-        if a % 2 == 0:
-            c2f = a * inverse_mod(b, 2**e) % 2**e
-            isP2f = True
-        else:
-            c2f = b * inverse_mod(a, 2**e) % 2**e
-            isP2f = False
+        # the two intermediate-curve responses share the same shape
+        nIsk = norm(Isk)
+        coords = []
+        for k in (1, 2):
+            Im, Imp2b, Imp2f = self._setup_response_ideal(Iall, k, e0, e, nIsk, O0)
+            coords.append(self._response_coords(Im, Imp2b, Imp2f, e))
+        (c1b, c1f, isP1b, isP1f), (c2b, c2f, isP2b, isP2f) = coords
 
         return (c0without_chl, c1b, c1f, c2b, c2f, isP1b, isP1f, isP2b, isP2f)
+
+    def _setup_response_ideal(self, Iall, k, e0, e, nIsk, O0):
+        """
+        Build the k-th (k = 1, 2) response ideal Im together with the forward and
+        backward 2^e-torsion push-out ideals (Imp2f, Imp2b) used to read off its
+        coordinates. The two responses differ only by the exponent offset 2*k*e.
+        """
+        hi = 2**(e0 + 2*k*e) * nIsk
+        lo = 2**(e0 + (2*k - 1)*e) * nIsk
+        ImImp2f = Iall + O0 * hi
+        Im = ImImp2f + O0 * lo
+        Im, beta, _ = quaternion.EquivalentRandomPrimeIdeal(Im)
+        Imp2f = ImImp2f * (beta.conjugate() / lo) + O0 * 2**e
+        Imp2b = O0 * beta.conjugate() + O0 * 2**e
+        return Im, Imp2b, Imp2f
+
+    def _response_coords(self, Im, Imp2b, Imp2f, e):
+        """
+        Translate one response ideal into its (backward, forward) coordinates.
+
+        Returns (cb, cf, isPb, isPf): cb/isPb describe the kernel pushed through
+        the dual isogeny, cf/isPf the forward 2^e-torsion kernel.
+        """
+        Em, Pm, Qm = self.E0withEnd.IdealToIsogeny(Im)
+        Em, (Pm, Qm) = self._normalize_curve(Em, (Pm, Qm))
+        Pmd, Qmd = self._deterministic_torsion_basis(Em, e)
+        Mm = util.BiDLP_matrix_power_two(Pm, Qm, Pmd, Qmd, e)
+
+        # backward: evaluate the complementary point through the dual isogeny
+        vdual = self.E0withEnd.IdealToKernel(Imp2b, e) * Mm % 2**e
+        Kdual = vdual[0] * Pmd + vdual[1] * Qmd
+        evalP = Pmd if vdual[0] % 2 == 0 else Qmd
+        phi = Em.isogeny(Kdual, model='montgomery', algorithm='factored')
+        K = phi(evalP)
+        assert K.order() == 2**e
+        Emb, (K,) = self._normalize_curve(phi.codomain(), (K,))
+        Pmb, Qmb = self._deterministic_torsion_basis(Emb, e)
+        a, b = utilities.discrete_log.BiDLP_power_two(K, Pmb, Qmb, e, None)
+        cb, isPb = self._projective_coord(a, b, e)
+
+        # forward: read the 2^e-torsion kernel directly
+        vf = self.E0withEnd.IdealToKernel(Imp2f, e) * Mm % 2**e
+        cf, isPf = self._projective_coord(vf[0], vf[1], e)
+
+        return cb, cf, isPb, isPf
+
+    @staticmethod
+    def _projective_coord(a, b, e):
+        """
+        Encode the kernel spanned by (a, b) with a single coordinate.
+
+        Returns (c, isP): with isP True the kernel is c*P + Q, otherwise P + c*Q,
+        where c lives in Z/2^e. The even one of a, b is placed in the numerator so
+        the other is invertible mod 2^e.
+        """
+        if a % 2 == 0:
+            return a * inverse_mod(b, 2**e) % 2**e, True
+        return b * inverse_mod(a, 2**e) % 2**e, False
 
     def Hash(self, msg):
         h = hashlib.sha256(msg)
