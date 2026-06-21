@@ -118,6 +118,7 @@ class SQIsign:
         Echl = Epk.isogeny(K, model='montgomery', algorithm='factored').codomain()
         Echld = Em1.isogeny(K1dual, model='montgomery', algorithm='factored').codomain()
         assert Echld.j_invariant() == Echl.j_invariant()
+        print("Echl.j_invariant() = ", Echl.j_invariant())
         # end
         phi = Em1.isogeny(K1dual, model='montgomery', algorithm='factored')
         K1 = phi(evalP)
@@ -131,6 +132,15 @@ class SQIsign:
         else:
             c1b = b * inverse_mod(a, 2**e) % 2**e
             isP1b = False
+        # for check
+        if isP1b:
+            K = c1b * Pm1b + Qm1b
+        else:
+            K = Pm1b + c1b * Qm1b
+        Em1d = Em1b.isogeny(K, model='montgomery', algorithm='factored').codomain()
+        assert Em1d.j_invariant() == Em1.j_invariant()
+        print("Em1.j_invariant() = ", Em1.j_invariant())
+        # end
         v1f = self.E0withEnd.IdealToKernel(Im1p2f, e)
         v1f = v1f * Mm1 % 2**e
         a, b = v1f
@@ -159,6 +169,7 @@ class SQIsign:
         Em1f = Em1.isogeny(K, model='montgomery', algorithm='factored').codomain()
         Em2b = Em2.isogeny(K2dual, model='montgomery', algorithm='factored').codomain()
         assert Em2b.j_invariant() == Em1f.j_invariant()
+        print("Em1f.j_invariant() = ", Em1f.j_invariant())
         # end
         phi = Em2.isogeny(K2dual, model='montgomery', algorithm='factored')
         K2 = phi(evalP)
@@ -172,6 +183,15 @@ class SQIsign:
         else:
             c2b = b * inverse_mod(a, 2**e) % 2**e
             isP2b = False
+        # for check
+        if isP2b:
+            K = c2b * Pm2b + Qm2b
+        else:
+            K = Pm2b + c2b * Qm2b
+        Em2d = Em2b.isogeny(K, model='montgomery', algorithm='factored').codomain()
+        assert Em2d.j_invariant() == Em2.j_invariant()
+        print("Em2.j_invariant() = ", Em2.j_invariant())
+        # end
         v2f = self.E0withEnd.IdealToKernel(Im2p2f, e)
         v2f = v2f * Mm2 % 2**e
         a, b = v2f
@@ -181,6 +201,15 @@ class SQIsign:
         else:
             c2f = b * inverse_mod(a, 2**e) % 2**e
             isP2f = False
+        # for check
+        if isP2f:
+            K = c2f * Pm2d + Qm2d
+        else:
+            K = Pm2d + c2f * Qm2d
+        Ecomd = Em2.isogeny(K, model='montgomery', algorithm='factored').codomain()
+        assert Ecomd.j_invariant() == Ecom.j_invariant()
+        print("Ecom.j_invariant() = ", Ecom.j_invariant())
+        # end
         
         return (c0, c1b, c1f, c2b, c2f, isP1b, isP1f, isP2b, isP2f)
 
@@ -192,6 +221,7 @@ class SQIsign:
         Ppk, Qpk = self._deterministic_torsion_basis(Epk, self.E0withEnd.e)
         K = 2**(e - e0) * (Ppk + c0 * Qpk)
         E = Epk.isogeny(K, model='montgomery', algorithm='factored').codomain()
+        print("E.j_invariant() = ", E.j_invariant())
         for (c, isP) in [(c1b, isP1b), (c1f, isP1f), (c2b, isP2b), (c2f, isP2f)]:
             P, Q = self._deterministic_torsion_basis(E, e)
             if isP:
@@ -199,6 +229,7 @@ class SQIsign:
             else:
                 K = P + c * Q
             E = E.isogeny(K, model='montgomery', algorithm='factored').codomain()
+            print("E.j_invariant() = ", E.j_invariant())
         chl = self.Hash(msg + util.j_invariant_to_bytes(E) + util.j_invariant_to_bytes(Epk))
         return chl == c0 % 2**self.e_chl
 
