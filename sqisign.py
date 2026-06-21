@@ -47,22 +47,24 @@ class SQIsign:
         pk = Epk
         return sk, pk
 
-    def Hash(self, msg):
-        h = hashlib.sha256(msg)
-        c = util.bytes_to_integer(h.digest())
-        return c % 2**self.e_chl
-
-    def Sign(self, sk, pk, msg):
+    def Commit(self, pk, msg):
+        Icom, _ = quaternion.RandomFixedNormIdeal(self.E0withEnd.order, self.Dmix)
+        Ecom, _, _ = self.E0withEnd.IdealToIsogeny(Icom)
+        com = Ecom
+        st = Icom
+        return com, st
+    
+    def Respond(self, sk, pk, com, st, chl):
         Isk, Msk = sk
         Epk = pk
         O0 = self.E0withEnd.order
         e = self.E0withEnd.e
         Ppk, Qpk = self._deterministic_torsion_basis(Epk, e)
 
-        Icom, _ = quaternion.RandomFixedNormIdeal(self.E0withEnd.order, self.Dmix)
-        Ecom, _, _ = self.E0withEnd.IdealToIsogeny(Icom)
+        Ecom = com
+        Icom = st
 
-        chl = self.Hash(msg + util.j_invariant_to_bytes(Ecom) + util.j_invariant_to_bytes(Epk))
+        # make the ideal corresponding to chl
         a, b = vector([1, chl]) * Msk.inverse()
         Ichl = self.E0withEnd.KernelToIdeal(a, b, self.e_chl)
         IskIchl = Isk.intersection(Ichl)
@@ -103,6 +105,7 @@ class SQIsign:
         v0 = v0 * Msk % 2**e0
         c0 = v0[1] * inverse_mod(v0[0], 2**e0) % 2**e0
         assert c0 % 2**self.e_chl == chl
+        c0without_chl = (c0 - chl) // 2**self.e_chl
 
         Em1, Pm1, Qm1 = self.E0withEnd.IdealToIsogeny(Im1)
         Em1, (Pm1, Qm1) = self._normalize_curve(Em1, (Pm1, Qm1))
@@ -211,7 +214,21 @@ class SQIsign:
         assert Ecomd.j_invariant() == Ecom.j_invariant()
         # end
         
-        return (c0, c1b, c1f, c2b, c2f, isP1b, isP1f, isP2b, isP2f)
+        return (c0without_chl, c1b, c1f, c2b, c2f, isP1b, isP1f, isP2b, isP2f)
+
+    def Hash(self, msg):
+        h = hashlib.sha256(msg)
+        c = util.bytes_to_integer(h.digest())
+        return c % 2**self.e_chl
+
+    def Sign(self, sk, pk, msg):
+        com, st = self.Commit(pk, msg)
+        chl = self.Hash(msg + util.j_invariant_to_bytes(com) + util.j_invariant_to_bytes(pk))
+        rsp = self.Respond(sk, pk, com, st, chl)
+        c0without_chl = rsp[0]
+        c0 = c0without_chl * 2**self.e_chl + chl
+        rsp = (c0,) + rsp[1:]
+        return rsp
 
     def Verify(self, pk, msg, sign):
         e = self.E0withEnd.e
