@@ -234,9 +234,86 @@ class SQIsign:
         return chl == c0 % 2**self.e_chl
 
     @staticmethod
+    def _Fp2_sqrt(a):
+        """
+        Canonical square root in F_{p^2} = F_p(i) with i^2 = -1 and p = 3 (mod 4),
+        following Eqs. (1)-(2) of the SQIsign specification. This is deterministic,
+        unlike Sage's randomized finite-field sqrt, so it can be used for the
+        canonical normalization of curves.
+        """
+        F = a.parent()
+        p = F.characteristic()
+        Fp = F.base_ring()
+        i = F.gen()
+        c = a.list()
+        a0 = Fp(c[0]) if len(c) > 0 else Fp(0)
+        a1 = Fp(c[1]) if len(c) > 1 else Fp(0)
+        if a1 == 0:
+            # a lies in F_p
+            if a0 == 0 or a0**((p - 1)//2) == 1:      # a0 is a square in F_p
+                return F(a0**((p + 1)//4))
+            return F((-a0)**((p + 1)//4)) * i          # -a0 is a square: sqrt(a) = sqrt(-a0)*i
+        n = a0**2 + a1**2                              # norm N(a) in F_p (a square)
+        sn = n**((p + 1)//4)                           # canonical F_p square root of the norm
+        half = Fp(1) / 2
+        t = (a0 + sn) * half
+        if not (t != 0 and t**((p - 1)//2) == 1):      # exactly one candidate is a square in F_p
+            t = (a0 - sn) * half
+        x0 = t**((p + 1)//4)
+        x1 = a1 / (2 * x0)
+        return F(x0) + F(x1) * i
+
+    @staticmethod
+    def _Fp2_key(z):
+        """Sort key for the lexicographic ordering of Eq. (3): a0 + a1*i ordered by
+        (a0, a1) lifted to [0, p-1]."""
+        c = z.list()
+        z0 = ZZ(c[0]) if len(c) > 0 else ZZ(0)
+        z1 = ZZ(c[1]) if len(c) > 1 else ZZ(0)
+        return (z0, z1)
+
+    @staticmethod
+    def MontgomeryNormalize(A):
+        """
+        Algorithm 1 (MontgomeryNormalize) of the SQIsign specification
+        (https://sqisign.org/spec/sqisign-20230601.pdf, Section 2.2.1.1).
+
+        To a single supersingular j-invariant correspond six Montgomery
+        A-invariants defining F_{p^2}-isomorphic curves. This returns the
+        canonical one (depending only on the isomorphism class), together with
+        the data (R, U) of an isomorphism
+
+            E_A -> E_{A'},   (x, y) |-> (U^2 * (x + R), U^3 * y).
+        """
+        F = A.parent()
+        i = F.gen()
+        A2 = A**2
+        s = SQIsign._Fp2_sqrt(A2 - 4)
+        u = (9 - A2) / 2
+        t = (A**3 - 3*A) / (2 * s)
+        # The three values Z0, Z1, Z2 are the squares of the six A-invariants.
+        Z = min((A2, u + t, u - t), key=SQIsign._Fp2_key)
+        Aprime = SQIsign._Fp2_sqrt(Z)
+        if Aprime == A:
+            R, U = F(0), F(1)
+        elif Aprime == -A:
+            R, U = F(0), i
+        else:
+            R = (A2 + Aprime**2 - 6) * A / (A2 + 2*Aprime**2 - 9)
+            U = SQIsign._Fp2_sqrt(Aprime / (A - 3*R))
+        return Aprime, R, U
+
+    @staticmethod
     def _deterministic_torsion_basis(E, e):
         """
-        Compute a deterministic basis of E[2^e] for a supersingular Montgomery curve
+        Compute a deterministic basis of E[2^e] for a supersingular Montgomery curve.
+
+        The curve is first normalized with MontgomeryNormalize (Algorithm 1) so
+        that the basis depends only on the F_{p^2}-isomorphism class and not on the
+        particular Montgomery model: signing and verification reach the same curves
+        through different isogeny computations, which generally yields different
+        (but isomorphic) Montgomery A-invariants. The basis is computed on the
+        canonical model and mapped back to E via the normalization isomorphism.
         """
         F = E.base_ring()
         p = F.characteristic()
@@ -246,25 +323,33 @@ class SQIsign:
         assert A != 0
         assert E == EllipticCurve(F, [0, A, 0, 1, 0]) # y^2 = x^3 + A*x^2 + x
 
+        # normalize to the canonical model E_{An}
+        An, R, U = SQIsign.MontgomeryNormalize(A)
+        En = EllipticCurve(F, [0, An, 0, 1, 0])
+
         h = 0
-        if A.is_square():
+        if An.is_square():
             # We need the denominator 1 + i*h to be a non-square in F_{p^2},
             # which holds iff its norm 1 + h^2 is a non-square in F_p.
             while True:
                 h += 1
-                xP = -1/(1 + i*h)*A
+                xP = -1/(1 + i*h)*An
                 if kronecker(1 + h**2, p) == 1:
                     continue
-                if (xP**3 + A*xP**2 + xP).is_square():
+                if (xP**3 + An*xP**2 + xP).is_square():
                     break
         else:
             while True:
                 h += 1
-                xP = h*A
-                if (xP**3 + A*xP**2 + xP).is_square():
+                xP = h*An
+                if (xP**3 + An*xP**2 + xP).is_square():
                     break
         cofactor = (p + 1) // (2**e)
-        P = cofactor * E.lift_x(xP)
-        Q = cofactor * E.lift_x(-xP - A)
+        P = cofactor * En.lift_x(xP)
+        Q = cofactor * En.lift_x(-xP - An)
         assert P.weil_pairing(Q, 2**e)**(2**(e - 1)) == -1
+        # map the basis back to E through the inverse of (x, y) |-> (U^2(x+R), U^3 y)
+        U2, U3 = U**2, U**3
+        P = E(P[0]/U2 - R, P[1]/U3)
+        Q = E(Q[0]/U2 - R, Q[1]/U3)
         return P, Q
