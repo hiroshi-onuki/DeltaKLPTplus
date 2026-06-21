@@ -174,11 +174,10 @@ class SpecialSuperSingularCurve:
         a, b, c, d = vector(alpha) * self.order.basis_matrix().inverse()
         M = a * identity_matrix(2) + b * self.matrix_qi + c * self.matrix_qi_qj + d * self.matrix_1_qk
         ii, jj = None, None
-        for i in range(2):
-            for j in range(2):
-                if M[i, j] % 2 == 1:
-                    ii, jj = i, j
-                    break
+        for i, j in [(0, 0), (0, 1), (1, 0), (1, 1)]:
+            if M[i, j] % 2 == 1:
+                ii, jj = i, j
+                break
         assert ii is not None and jj is not None
         if jj == 0:
             v = vector([M[1, 0], -M[0, 0]]) % 2**exp
