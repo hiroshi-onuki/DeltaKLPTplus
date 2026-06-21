@@ -54,22 +54,18 @@ class SQIsign:
         st = Icom
         return com, st
     
-    def Respond(self, sk, pk, com, st, chl):
+    def Respond(self, sk, st, chl):
         Isk, Msk = sk
-        Epk = pk
+        Icom = st
         O0 = self.E0withEnd.order
         e = self.E0withEnd.e
-        Ppk, Qpk = self._deterministic_torsion_basis(Epk, e)
-
-        Ecom = com
-        Icom = st
 
         # make the ideal corresponding to chl
         a, b = vector([1, chl]) * Msk.inverse()
         Ichl = self.E0withEnd.KernelToIdeal(a, b, self.e_chl)
         IskIchl = Isk.intersection(Ichl)
 
-        IcomIrsp, _ = quaternion.deltaKLPTforSign(Icom, IskIchl, 2, self.e_rsp, self.EISN_norm_bound) # tmp!
+        IcomIrsp, _ = quaternion.deltaKLPTforSign(Icom, IskIchl, 2, self.e_rsp, self.EISN_norm_bound)
         N = norm(IcomIrsp) / 2**self.e_rsp
         Icom_d = IcomIrsp + O0 * N
         assert Icom.right_order().isomorphism_to(Icom_d.right_order()) != None
@@ -97,10 +93,6 @@ class SQIsign:
         Im2p2f = Im2Im2p2f * (beta.conjugate() / (2**(e0 + 3*e)*norm(Isk))) + O0 * 2**e
         Im2p2b = O0 * beta.conjugate() + O0 * 2**e
 
-        assert Isk.intersection(Im0p2).right_order().isomorphism_to(Im1.intersection(Im1p2b).right_order()) != None
-        assert Im1Im1p2f.right_order().isomorphism_to(Im2.intersection(Im2p2b).right_order()) != None
-        assert Im2Im2p2f.right_order().isomorphism_to(Icom.right_order()) != None
-
         v0 = self.E0withEnd.IdealToKernel(Im0p2, e0)
         v0 = v0 * Msk % 2**e0
         c0 = v0[1] * inverse_mod(v0[0], 2**e0) % 2**e0
@@ -118,12 +110,6 @@ class SQIsign:
             evalP = Pm1d
         else:
             evalP = Qm1d
-        # for check
-        K = 2**(e-e0) * (Ppk + c0 * Qpk)
-        Echl = Epk.isogeny(K, model='montgomery', algorithm='factored').codomain()
-        Echld = Em1.isogeny(K1dual, model='montgomery', algorithm='factored').codomain()
-        assert Echld.j_invariant() == Echl.j_invariant()
-        # end
         phi = Em1.isogeny(K1dual, model='montgomery', algorithm='factored')
         K1 = phi(evalP)
         assert K1.order() == 2**e
@@ -137,14 +123,6 @@ class SQIsign:
         else:
             c1b = b * inverse_mod(a, 2**e) % 2**e
             isP1b = False
-        # for check
-        if isP1b:
-            K = c1b * Pm1b + Qm1b
-        else:
-            K = Pm1b + c1b * Qm1b
-        Em1d = Em1b.isogeny(K, model='montgomery', algorithm='factored').codomain()
-        assert Em1d.j_invariant() == Em1.j_invariant()
-        # end
         v1f = self.E0withEnd.IdealToKernel(Im1p2f, e)
         v1f = v1f * Mm1 % 2**e
         a, b = v1f
@@ -166,15 +144,6 @@ class SQIsign:
             evalP = Pm2d
         else:
             evalP = Qm2d
-        # for check
-        if isP1f:
-            K = c1f * Pm1d + Qm1d
-        else:
-            K = Pm1d + c1f * Qm1d
-        Em1f = Em1.isogeny(K, model='montgomery', algorithm='factored').codomain()
-        Em2b = Em2.isogeny(K2dual, model='montgomery', algorithm='factored').codomain()
-        assert Em2b.j_invariant() == Em1f.j_invariant()
-        # end
         phi = Em2.isogeny(K2dual, model='montgomery', algorithm='factored')
         K2 = phi(evalP)
         assert K2.order() == 2**e
@@ -188,14 +157,6 @@ class SQIsign:
         else:
             c2b = b * inverse_mod(a, 2**e) % 2**e
             isP2b = False
-        # for check
-        if isP2b:
-            K = c2b * Pm2b + Qm2b
-        else:
-            K = Pm2b + c2b * Qm2b
-        Em2d = Em2b.isogeny(K, model='montgomery', algorithm='factored').codomain()
-        assert Em2d.j_invariant() == Em2.j_invariant()
-        # end
         v2f = self.E0withEnd.IdealToKernel(Im2p2f, e)
         v2f = v2f * Mm2 % 2**e
         a, b = v2f
@@ -205,15 +166,7 @@ class SQIsign:
         else:
             c2f = b * inverse_mod(a, 2**e) % 2**e
             isP2f = False
-        # for check
-        if isP2f:
-            K = c2f * Pm2d + Qm2d
-        else:
-            K = Pm2d + c2f * Qm2d
-        Ecomd = Em2.isogeny(K, model='montgomery', algorithm='factored').codomain()
-        assert Ecomd.j_invariant() == Ecom.j_invariant()
-        # end
-        
+
         return (c0without_chl, c1b, c1f, c2b, c2f, isP1b, isP1f, isP2b, isP2f)
 
     def Hash(self, msg):
@@ -224,7 +177,7 @@ class SQIsign:
     def Sign(self, sk, pk, msg):
         com, st = self.Commit(pk, msg)
         chl = self.Hash(msg + util.j_invariant_to_bytes(com) + util.j_invariant_to_bytes(pk))
-        rsp = self.Respond(sk, pk, com, st, chl)
+        rsp = self.Respond(sk, st, chl)
         c0without_chl = rsp[0]
         c0 = c0without_chl * 2**self.e_chl + chl
         rsp = (c0,) + rsp[1:]
