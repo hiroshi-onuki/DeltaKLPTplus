@@ -129,7 +129,8 @@ class SQIsign:
         """
         F = E.base_ring()
         p = F.characteristic()
-        i = sqrt(F(-1))
+        i = F.gen()
+        assert i**2 == -1
         A = E.a2()
         assert A != 0
         assert E == EllipticCurve(F, [0, A, 0, 1, 0]) # y^2 = x^3 + A*x^2 + x
