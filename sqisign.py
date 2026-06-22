@@ -7,6 +7,7 @@ from sage.all import (
     vector,
     norm,
     inverse_mod,
+    randint,
 )
 import hashlib
 import special_curve
@@ -155,6 +156,29 @@ class SQIsign:
             return a * inverse_mod(b, 2**e) % 2**e, True
         return b * inverse_mod(a, 2**e) % 2**e, False
 
+    def RecoverCommitment(self, pk, chl, rsp):
+        e = self.E0withEnd.e
+        e0 = self.e_chl + self.e_rsp - 4*e
+        c0without_chl, c1b, c1f, c2b, c2f, isP1b, isP1f, isP2b, isP2f = rsp
+        c0 = c0without_chl * 2**self.e_chl + chl
+        Epk = pk
+        Ppk, Qpk = self._deterministic_torsion_basis(Epk, self.E0withEnd.e)
+        K = 2**(e - e0) * (Ppk + c0 * Qpk)
+        phi = Epk.isogeny(K, model='montgomery', algorithm='factored')
+        E = phi.codomain()
+        imP = phi(2**(e - 1) * Qpk)  # for checking the cyclicity of the isogeny
+        for (c, isP) in [(c1b, isP1b), (c1f, isP1f), (c2b, isP2b), (c2f, isP2f)]:
+            E, (imP,) = self._normalize_curve(E, (imP,))
+            P, Q = self._deterministic_torsion_basis(E, e)
+            if isP:
+                K = c * P + Q
+            else:
+                K = P + c * Q
+            phi = E.isogeny(K, model='montgomery', algorithm='factored')
+            E = phi.codomain()
+            imP = phi(imP)
+        return E, not imP.is_zero()
+
     def Hash(self, msg):
         h = hashlib.sha256(msg)
         c = util.bytes_to_integer(h.digest())
@@ -170,27 +194,63 @@ class SQIsign:
         return rsp
 
     def Verify(self, pk, msg, sign):
+        c0 = sign[0]
+        chl = c0 % 2**self.e_chl
+        # RecoverCommitment expects c0 without the challenge part (it re-adds chl);
+        # the signature stores the full c0, so strip the low e_chl bits here.
+        c0without_chl = c0 // 2**self.e_chl
+        rsp = (c0without_chl,) + sign[1:]
+        com, is_cyclic = self.RecoverCommitment(pk, chl, rsp)
+        chl_check = self.Hash(msg + util.j_invariant_to_bytes(com) + util.j_invariant_to_bytes(pk))
+        return chl == chl_check and is_cyclic
+         
+    def Simulator(self, pk, chl):
         e = self.E0withEnd.e
         e0 = self.e_chl + self.e_rsp - 4*e
-        c0, c1b, c1f, c2b, c2f, isP1b, isP1f, isP2b, isP2f = sign
         Epk = pk
         Ppk, Qpk = self._deterministic_torsion_basis(Epk, self.E0withEnd.e)
+        
+        c0without_chl = randint(0, 2**(e0 - self.e_chl) - 1)
+        c0 = c0without_chl * 2**self.e_chl + chl
         K = 2**(e - e0) * (Ppk + c0 * Qpk)
         phi = Epk.isogeny(K, model='montgomery', algorithm='factored')
         E = phi.codomain()
-        imP = phi(Qpk)  # for checking the cyclicity of the isogeny
-        for (c, isP) in [(c1b, isP1b), (c1f, isP1f), (c2b, isP2b), (c2f, isP2f)]:
+        imP = phi(2**(e - 1) * Qpk)  # for checking the cyclicity of the isogeny
+        
+        rsp_c = (c0without_chl,)
+        rsp_isP = ()
+        for _ in range(4):
             E, (imP,) = self._normalize_curve(E, (imP,))
             P, Q = self._deterministic_torsion_basis(E, e)
-            if isP:
-                K = c * P + Q
-            else:
+            P2, Q2 = 2**(e - 1) * P, 2**(e - 1) * Q
+            c = randint(0, 2**e - 1)
+            if imP == P2:
+                if c % 2 == 0:
+                    K = c * P + Q
+                    isP = True
+                else:
+                    K = P + c * Q
+                    isP = False
+            elif imP == Q2:
                 K = P + c * Q
+                isP = False
+            else:   # imP == P2 + Q2
+                if c % 2 == 0:
+                    K = c * P + Q
+                    isP = True
+                else:
+                    c -= 1
+                    K = P + c * Q
+                    isP = False
+            rsp_c += (c,)
+            rsp_isP += (isP,)
             phi = E.isogeny(K, model='montgomery', algorithm='factored')
             E = phi.codomain()
             imP = phi(imP)
-        chl = self.Hash(msg + util.j_invariant_to_bytes(E) + util.j_invariant_to_bytes(Epk))
-        return chl == c0 % 2**self.e_chl and imP.order() == 2**e
+        rsp = rsp_c + rsp_isP
+        com, is_cyclic = self.RecoverCommitment(pk, chl, rsp)
+        assert is_cyclic
+        return com, rsp
 
     @staticmethod
     def _normalize_curve(E, points=()):
@@ -227,7 +287,7 @@ class SQIsign:
             R = (A2 + Aprime**2 - 6) * A / (A2 + 2*Aprime**2 - 9)
             U = util.deterministic_sqrt(Aprime / (A - 3*R))
         U2, U3 = U**2, U**3
-        return En, [En(U2 * (T[0] + R), U3 * T[1]) for T in points]
+        return En, [En(0) if T.is_zero() else En(U2 * (T[0] + R), U3 * T[1]) for T in points]
 
     @staticmethod
     def _deterministic_torsion_basis(E, e):

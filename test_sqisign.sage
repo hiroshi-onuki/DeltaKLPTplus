@@ -18,3 +18,9 @@ for _ in range(10):
 
     assert SQIsign_instance.Verify(pk, b"Test message", sign)
     print("Verification successful")
+
+    chl = randint(0, 2**SQIsign_instance.e_chl - 1)
+    com, rsp = SQIsign_instance.Simulator(pk, chl)
+    print("Simulation successful")
+
+
