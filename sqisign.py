@@ -77,9 +77,9 @@ class SQIsign:
         alpha *= ZZ(sqrt(n))     # scale alpha so that norm(Iall) = norm(alpha)
         assert Iall == O0 * alpha
         assert alpha/2 not in O0
-        e0 = self.e_chl + self.e_rsp - 4*e
 
-        # challenge coordinate (carries chl in its low e_chl bits)
+        # the coefficient for the challenge + the remaining part of the response
+        e0 = self.e_chl + self.e_rsp - 4*e
         Im0p2 = Iall + O0 * 2**e0
         v0 = self.E0withEnd.IdealToKernel(Im0p2, e0)
         v0 = v0 * Msk % 2**e0
@@ -87,7 +87,7 @@ class SQIsign:
         assert c0 % 2**self.e_chl == chl
         c0without_chl = (c0 - chl) // 2**self.e_chl
 
-        # the two intermediate-curve responses share the same shape
+        # the coefficients for 2^(4e)-part of the response
         nIsk = norm(Isk)
         coords = []
         for k in (1, 2):
