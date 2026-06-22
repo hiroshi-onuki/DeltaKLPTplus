@@ -176,17 +176,21 @@ class SQIsign:
         Epk = pk
         Ppk, Qpk = self._deterministic_torsion_basis(Epk, self.E0withEnd.e)
         K = 2**(e - e0) * (Ppk + c0 * Qpk)
-        E = Epk.isogeny(K, model='montgomery', algorithm='factored').codomain()
+        phi = Epk.isogeny(K, model='montgomery', algorithm='factored')
+        E = phi.codomain()
+        imP = phi(Qpk)  # for checking the cyclicity of the isogeny
         for (c, isP) in [(c1b, isP1b), (c1f, isP1f), (c2b, isP2b), (c2f, isP2f)]:
-            E = self._normalize_curve(E)
+            E, (imP,) = self._normalize_curve(E, (imP,))
             P, Q = self._deterministic_torsion_basis(E, e)
             if isP:
                 K = c * P + Q
             else:
                 K = P + c * Q
-            E = E.isogeny(K, model='montgomery', algorithm='factored').codomain()
+            phi = E.isogeny(K, model='montgomery', algorithm='factored')
+            E = phi.codomain()
+            imP = phi(imP)
         chl = self.Hash(msg + util.j_invariant_to_bytes(E) + util.j_invariant_to_bytes(Epk))
-        return chl == c0 % 2**self.e_chl
+        return chl == c0 % 2**self.e_chl and imP.order() == 2**e
 
     @staticmethod
     def _normalize_curve(E, points=()):
