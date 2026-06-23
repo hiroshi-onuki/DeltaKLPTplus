@@ -48,7 +48,7 @@ class SQIsign:
         pk = Epk
         return sk, pk
 
-    def Commit(self, pk, msg):
+    def Commit(self):
         Icom, _ = quaternion.RandomFixedNormIdeal(self.E0withEnd.order, self.Dmix)
         Ecom, _, _ = self.E0withEnd.IdealToIsogeny(Icom)
         com = Ecom
@@ -185,7 +185,7 @@ class SQIsign:
         return c % 2**self.e_chl
 
     def Sign(self, sk, pk, msg):
-        com, st = self.Commit(pk, msg)
+        com, st = self.Commit()
         chl = self.Hash(msg + util.j_invariant_to_bytes(com) + util.j_invariant_to_bytes(pk))
         rsp = self.Respond(sk, st, chl)
         c0without_chl = rsp[0]
