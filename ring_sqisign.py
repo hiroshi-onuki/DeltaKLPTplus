@@ -31,11 +31,13 @@ class RingSQIsign(SQIsign):
                 chl_start = chl
             com, rsp = super().Simulator(Pk[(idx + i) % n], chl)
             Rsp[(idx + i) % n] = rsp
-        
+
         # make (chl, com, rsp) for the signer
         chl = super().Hash(message + util.j_invariant_to_bytes(com) + mPk)
         rsp = super().Respond(sk, st_true, chl)
         Rsp[idx] = rsp
+        if idx == 0:
+            chl_start = chl
 
         for rsp in Rsp:
             assert rsp is not None
