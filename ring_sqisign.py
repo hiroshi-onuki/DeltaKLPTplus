@@ -43,12 +43,14 @@ class RingSQIsign(SQIsign):
         return chl_start, Rsp
 
     def Verify(self, Pk, message, sign):
-        chl, Rsp = sign
+        chl_first, Rsp = sign
         mPk = b''.join([util.j_invariant_to_bytes(pk) for pk in Pk])
 
+        chl = chl_first
         for i in range(self.n_parties):
             com, is_cyclic = super().RecoverCommitment(Pk[i], chl, Rsp[i])
-            chl_d = super().Hash(message + util.j_invariant_to_bytes(com) + mPk)
-            if chl_d != chl or not is_cyclic:
+            chl = super().Hash(message + util.j_invariant_to_bytes(com) + mPk)
+            if not is_cyclic:
+                print("not cyclic in", i)
                 return False
-        return True
+        return chl == chl_first
