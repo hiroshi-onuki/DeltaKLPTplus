@@ -197,7 +197,7 @@ def RandomFixedNormIdeal(O0, N):
 
 # Given two O0-ideals I1, I2 with the same norm N,
 # return beta1 in I1 and beta2 in I2 s.t. qI1(beta1) = qI2(beta2) approx p^(3/4) * N^(1/4)
-def EquivalentIdealsWithSameNorm(I1, I2, N, num_vectors=10):
+def EquivalentIdealsWithSameNorm(I1, I2, N, norm_margin=2**5, num_vectors=10):
     assert I1.left_order() == I2.left_order()
     assert norm(I1) == norm(I2) == N
     O0 = I1.left_order()
@@ -235,11 +235,14 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, num_vectors=10):
     L = IntegralLattice(Gram, Lbasis)
 
     # short solution for alpha2 * x * bar(alpha1) = 0 mod N with gcd(norm(x), N) = 1
-    B = ceil(sqrt(N))
+    B1 = ceil(sqrt(p*N))
+    B = B1 * norm_margin
     vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: gcd(newN, N) == 1, num_vectors=num_vectors)
+    assert vlist, "No solution found in LatticeEnumeration"
     v = vlist[randint(0, len(vlist)-1)]
     x = sum(c * b for c, b in zip(v, O0.basis()))
     Nx = x.reduced_norm()
+    assert Nx < B
     assert alpha2 * x * alpha1.conjugate() in O0 * N
     assert gcd(Nx, N) == 1
 
@@ -249,9 +252,10 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, num_vectors=10):
     OxZ = Ox.overlattice([vector(O0(1)) * Qinv])
     L = IntegralLattice(Gram, L1.intersection(OxZ).basis())
 
-    # find a short vector v in L s.t. the normalized norm of the corresponding element is prime
-    B = N*ceil(sqrt(p*Nx))
+    B2 = ceil(sqrt(p*B1) * log(p))
+    B = N * max(B2 * norm_margin, ceil(sqrt(p*Nx)) * log(p))
     vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_pseudoprime(ZZ(newN/(2*N))), num_vectors=num_vectors)
+    assert vlist, "No solution found in LatticeEnumeration"
     v = vlist[randint(0, len(vlist)-1)]
     beta1 = sum(c * b for c, b in zip(v, O0.basis()))
     newN = ZZ(beta1.reduced_norm() / N)
@@ -324,7 +328,7 @@ def EquivalentIdealsWithSameNormSmallN(I1, I2, N, num_vectors=10):
 
 def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound,
                     KLPT_margin=40,
-                    EISN_loop_bound=100, EISN_vec_bound=1000, SA_loop_bound=1000):
+                    EISN_loop_bound=100, EISN_norm_margin=2**4, EISN_vec_bound=20, SA_loop_bound=1000):
     assert Icom.left_order() == IskIchl.left_order()
     _, _, qj, qk = Icom.quaternion_algebra().basis()
     O = Icom.left_order()
@@ -349,7 +353,7 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound,
         NCD = None
         cnt = 0
         while cnt < EISN_loop_bound and (NCD is None or N > norm_bound or kronecker(l**e, N) != kronecker(NCD, N)):
-            J1, J2, _, beta2, newN = EquivalentIdealsWithSameNorm(J1, J2, N, EISN_vec_bound)
+            J1, J2, _, beta2, newN = EquivalentIdealsWithSameNorm(J1, J2, N, EISN_norm_margin, EISN_vec_bound)
             assert norm(J1) == norm(J2) == newN
             alpha2 = beta2*alpha2 / N
             N = newN
@@ -359,6 +363,7 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound,
             NCD = p * (C**2 + D**2)
             cnt += 1
         if N > norm_bound or kronecker(l**e, N) != kronecker(NCD, N):
+            print("    EISN loop failed: N=%d, NCD=%d, kronecker(l^e,N)=%s, kronecker(NCD,N)=%s" % (N, NCD, kronecker(l**e, N), kronecker(NCD, N)))
             continue
         assert J2 == EquivalentIdeal(IskIchl, alpha2)
         

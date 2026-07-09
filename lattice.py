@@ -118,9 +118,14 @@ def _floor_sqrt_plus(s, U):
             return k
         k -= 1
 
-# enumerate vectors of the (already reduced) basis with norm < B; helper for
-# LatticeEnumeration that keeps the costly basis reduction out of the B loop.
-def _enumerate_below_bound(red_basis, q, G, zero_vec, n, B, condition, num_vectors):
+# enumerate vectors of the (already reduced) basis with norm < B
+def LatticeEnumeration(L, B, condition, num_vectors):
+    red_basis = [vector(ZZ, b) for b in L.LLL().basis()]
+    n = len(red_basis)
+    G = [[ZZ(red_basis[a].inner_product(red_basis[b])) for b in range(n)] for a in range(n)]
+    q = MakeQuatraticForm(list(range(n)), lambda a, b: G[a][b])
+    zero_vec = vector(ZZ, [0] * len(red_basis[0]))
+
     S = [0] * n
     U = [0] * n
     upper = [ZZ(0)] * n
@@ -162,24 +167,3 @@ def _enumerate_below_bound(red_basis, q, G, zero_vec, n, B, condition, num_vecto
                     return ret
         else:
             return ret
-
-# return list of vectors alpha in L s.t. norm(alpha) < B and condition(norm(alpha)),
-# doubling B until at least one such vector is found. The lattice reduction and the
-# quadratic-form / Gram setup are done once and shared across all doublings.
-def LatticeEnumeration(L, B, condition, num_vectors):
-    red_basis = [vector(ZZ, b) for b in L.LLL().basis()]
-    n = len(red_basis)
-    # Gram matrix of the reduced basis: lets us both build the Gram-Schmidt
-    # quadratic form and evaluate the norm of a candidate directly from its
-    # integer coefficients, avoiding an inner_product (coordinate_vector) call
-    # for every enumerated point.
-    G = [[ZZ(red_basis[a].inner_product(red_basis[b])) for b in range(n)] for a in range(n)]
-    q = MakeQuatraticForm(list(range(n)), lambda a, b: G[a][b])
-    zero_vec = vector(ZZ, [0] * len(red_basis[0]))
-
-    B = ZZ(B)
-    while True:
-        ret = _enumerate_below_bound(red_basis, q, G, zero_vec, n, B, condition, num_vectors)
-        if ret:
-            return ret
-        B *= 2

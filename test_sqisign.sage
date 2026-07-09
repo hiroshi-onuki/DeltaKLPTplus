@@ -9,7 +9,7 @@ lam = 128
 SQIsign_instance = SQIsign(1)
 E0withEnd = SQIsign_instance.E0withEnd
 
-for _ in range(10):
+for _ in range(100):
     sk, pk = SQIsign_instance.Keygen()
     print("Key generation successful")
     
