@@ -1,4 +1,4 @@
-from sage.all import (
+from sage.all import ( # type: ignore
     ZZ,
     QQ,
     gcd,
@@ -8,7 +8,7 @@ from sage.all import (
     sqrt,
     matrix,
 )
-from sage.modules.free_module_integer import IntegerLattice
+from sage.modules.free_module_integer import IntegerLattice # type: ignore
 
 def EuclideanNorm(v):
     v = vector(ZZ, v)

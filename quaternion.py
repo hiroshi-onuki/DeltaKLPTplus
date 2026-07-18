@@ -1,4 +1,4 @@
-from sage.all import (
+from sage.all import ( # type: ignore
     ZZ,
     GF,
     kronecker,
@@ -17,7 +17,7 @@ from sage.all import (
     IntegralLattice,
     log,
 )
-from sage.rings.factorint import factor_trial_division
+from sage.rings.factorint import factor_trial_division # type: ignore
 import lattice
 
 # return x, y s.t. n = x^2 + y^2, or None, None if no such x, y exist
@@ -265,66 +265,6 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, norm_margin=2**5, num_vectors=10):
     assert beta2 in I2
 
     return EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2), beta1, beta2, newN
-
-# Given two O0-ideals I1, I2 with the same norm N,
-# return beta1 in I1 and beta2 in I2 s.t. qI1(beta1) = qI2(beta2) approx p^(1/2) * N^(1/2)
-def EquivalentIdealsWithSameNormSmallN(I1, I2, N, num_vectors=10):
-    assert I1.left_order() == I2.left_order()
-    assert norm(I1) == norm(I2) == N
-    O0 = I1.left_order()
-    p = O0.discriminant()
-    _, qi, _, _ = O0.quaternion_algebra().basis()
-    Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace() for b1 in O0.basis() for b2 in O0.basis()])
-    Q = O0.basis_matrix()
-    Qinv = Q.inverse()
-    ZN = ZZ.quotient_ring(ZZ(N))
-
-    # construct the lattice L consisting of vectors corresponding to solutions of alpha2 * x * bar(alpha1) = 0 mod N
-    alpha1 = SmallGenerator(I1)
-    alpha2 = SmallGenerator(I2)
-    MatN = matrix(ZN, Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv)
-    MatN = MatN[:2,:]
-    b0 = None
-    b1 = None
-    for i in range(2):
-        for j in range(4):
-            if gcd(ZZ(MatN[i, j]), N) == 1:
-                c = MatN[i, j].inverse() * MatN[1-i, j]
-                b0 = vector(ZZ, [1, 1])
-                b1 = vector(ZZ, [0, 0])
-                b0[i] = -c
-                b1[i] = N
-                assert vector(ZN, b0) * MatN == 0
-                break
-        if b0 is not None:
-            break
-    assert b0 is not None
-    L = IntegralLattice(matrix([[1, 0], [0, 1]]), [b0, b1])
-    B = ceil(sqrt(N))
-    vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: gcd(newN, N) == 1, num_vectors=num_vectors)
-    v = vlist[randint(0, len(vlist)-1)]
-    x = v[0] + v[1]*qi
-    assert x.reduced_norm() == Nx
-    assert alpha2 * x * alpha1.conjugate() in O0 * N
-
-    # construct the lattice L = I1 \cap (O0 * x + Z)
-    L1 = IntegralLattice(Gram, [vector(b) * Qinv for b in I1.basis()])
-    Ox = IntegralLattice(Gram, [vector(b*x) * Qinv for b in O0.basis()])
-    OxZ = Ox.overlattice([vector([1,0,0,0])])
-    L = IntegralLattice(Gram, L1.intersection(OxZ).basis())
-
-    # find a short vector v in L s.t. the normalized norm of the corresponding element is prime
-    B = N*ceil(sqrt(p*Nx))
-    vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_pseudoprime(ZZ(newN/(2*N))), num_vectors=num_vectors)
-    v = vlist[randint(0, len(vlist)-1)]
-    beta1 = sum(c * b for c, b in zip(v, O0.basis()))
-    newN = ZZ(beta1.reduced_norm() / N)
-
-    assert beta1 in I1
-    beta2 = x * beta1 * x.conjugate() / Nx
-    assert beta2 in I2
-
-    return EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2), newN
 
 def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound,
                     KLPT_margin=40,
