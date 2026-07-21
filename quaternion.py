@@ -197,11 +197,12 @@ def RandomFixedNormIdeal(O0, N):
 
 # Given two O0-ideals I1, I2 with the same norm N,
 # return beta1 in I1 and beta2 in I2 s.t. qI1(beta1) = qI2(beta2) approx p^(3/4) * N^(1/4)
-def EquivalentIdealsWithSameNorm(I1, I2, N, norm_margin=2**5, num_vectors=10):
+def EquivalentIdealsWithSameNorm(I1, I2, N, norm_bound, num_vectors=10):
     assert I1.left_order() == I2.left_order()
     assert norm(I1) == norm(I2) == N
     O0 = I1.left_order()
     p = O0.discriminant()
+    assert norm_bound >= ceil(p**(3/4) * N**(1/4) * (3/4*log(p) + 1/4*log(N)))
     Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace() for b1 in O0.basis() for b2 in O0.basis()])
     Q = O0.basis_matrix()
     Qinv = Q.inverse()
@@ -235,8 +236,7 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, norm_margin=2**5, num_vectors=10):
     L = IntegralLattice(Gram, Lbasis)
 
     # short solution for alpha2 * x * bar(alpha1) = 0 mod N with gcd(norm(x), N) = 1
-    B1 = ceil(sqrt(p*N))
-    B = B1 * norm_margin
+    B = floor(norm_bound**2 / (p * (log(p)**2)))
     vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: gcd(newN, N) == 1, num_vectors=num_vectors)
     assert vlist, "No solution found in LatticeEnumeration"
     v = vlist[randint(0, len(vlist)-1)]
@@ -252,8 +252,7 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, norm_margin=2**5, num_vectors=10):
     OxZ = Ox.overlattice([vector(O0(1)) * Qinv])
     L = IntegralLattice(Gram, L1.intersection(OxZ).basis())
 
-    B2 = ceil(sqrt(p*B1) * log(p))
-    B = N * max(B2 * norm_margin, ceil(sqrt(p*Nx)) * log(p))
+    B = N * norm_bound
     vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_pseudoprime(ZZ(newN/(2*N))), num_vectors=num_vectors)
     assert vlist, "No solution found in LatticeEnumeration"
     v = vlist[randint(0, len(vlist)-1)]
@@ -267,8 +266,7 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, norm_margin=2**5, num_vectors=10):
     return EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2), beta1, beta2, newN
 
 def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound,
-                    KLPT_margin=40,
-                    EISN_loop_bound=100, EISN_norm_margin=2**4, EISN_vec_bound=20, SA_loop_bound=1000):
+                    KLPT_margin=40, EISN_vec_bound=20, SA_loop_bound=1000):
     assert Icom.left_order() == IskIchl.left_order()
     _, _, qj, qk = Icom.quaternion_algebra().basis()
     O = Icom.left_order()
@@ -278,22 +276,22 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound,
     B1 = ceil(p**(0.5))
     B2 = ceil(p**(2.5)*log(p))
 
-    while True:
-        found = False
-        while not found:
-            n1 = random_prime(2**KLPT_margin*B1, lbound=B1, proof=False)
-            n2 = random_prime(2**KLPT_margin*B2, lbound=B2, proof=False)
-            J1, _, found = KLPT(Icom, n1, n2)
-            J2, alpha2, found2 = KLPT(IskIchl, n1, n2)
-            found = found and found2
-        assert norm(J1) == norm(J2) == n1*n2
+    found = False
+    while not found:
+        n1 = random_prime(2**KLPT_margin*B1, lbound=B1, proof=False)
+        n2 = random_prime(2**KLPT_margin*B2, lbound=B2, proof=False)
+        J1, _, found = KLPT(Icom, n1, n2)
+        J2, alpha2, found2 = KLPT(IskIchl, n1, n2)
+        found = found and found2
+    assert norm(J1) == norm(J2) == n1*n2
 
-        C, D = 0, 0
-        N = n1*n2
+    C, D = 0, 0
+    N = n1*n2
+    while True:
         NCD = None
-        cnt = 0
-        while cnt < EISN_loop_bound and (NCD is None or N > norm_bound or kronecker(l**e, N) != kronecker(NCD, N)):
-            J1, J2, _, beta2, newN = EquivalentIdealsWithSameNorm(J1, J2, N, EISN_norm_margin, EISN_vec_bound)
+        while NCD is None or N > norm_bound or kronecker(l**e, N) != kronecker(NCD, N):
+            B = max(norm_bound, ceil(p**(3/4) * N**(1/4) * (3/4*log(p) + 1/4*log(N))))
+            J1, J2, _, beta2, newN = EquivalentIdealsWithSameNorm(J1, J2, N, B, EISN_vec_bound)
             assert norm(J1) == norm(J2) == newN
             alpha2 = beta2*alpha2 / N
             N = newN
@@ -301,10 +299,6 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound,
             beta2 = SmallGenerator(J2)
             C, D = IdealModConstraint(O, qj, qk, beta2, beta1, N)
             NCD = p * (C**2 + D**2)
-            cnt += 1
-        if N > norm_bound or kronecker(l**e, N) != kronecker(NCD, N):
-            print("    EISN loop failed: N=%d, NCD=%d, kronecker(l^e,N)=%s, kronecker(NCD,N)=%s" % (N, NCD, kronecker(l**e, N), kronecker(NCD, N)))
-            continue
         assert J2 == EquivalentIdeal(IskIchl, alpha2)
         
         def is_cyclic(nu):
@@ -317,11 +311,10 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound,
             return (alpha2.conjugate() * gamma) / 2 not in O
 
         nu, found = StrongApproximation(O, N, C, D, l**e, SA_loop_bound, condition=is_cyclic)
-        if not found:
-            continue
-        assert beta2 * nu in J1
-        assert J1.intersection(O*nu) == J2 * nu
-        return J1.intersection(O*nu), nu
+        if found:
+            assert beta2 * nu in J1
+            assert J1.intersection(O*nu) == J2 * nu
+            return J1.intersection(O*nu), nu
 
 def Qlapoti(I, e, max_tries=10000):
     _, qi, _, _ = I.quaternion_algebra().basis()
