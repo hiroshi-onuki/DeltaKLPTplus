@@ -16,6 +16,7 @@ from sage.all import ( # type: ignore
     CRT,
     IntegralLattice,
     log,
+    RealField,
 )
 from sage.rings.factorint import factor_trial_division # type: ignore
 import lattice
@@ -195,6 +196,45 @@ def RandomFixedNormIdeal(O0, N):
     assert norm(I) == N
     return I, gamma*alpha
 
+# Sample alpha = a + b*qi with nrd(alpha) prime and the direction (a : b) mod P uniform
+# over P^1(F_p).
+#
+# The randomization in deltaKLPTforSign multiplies (bar(beta2)*beta1)^2/(n(beta1)*n(beta2))
+# mod P by (bar(x)/x)^2, where x = alpha mod P in O0/P = F_p^2.  That map kills F_p^* and is
+# 2-to-1 from P^1(F_p) onto the ((p+1)/2)-th roots of unity, so a uniform direction gives a
+# uniform twist.  Drawing the direction first and only then hunting for a prime norm keeps
+# the two independent: every point of the lattice below outside p*Z^2 has the direction we
+# asked for, so the primality search cannot bias it.
+#
+# A prime norm also makes alpha primitive (a common factor of a, b would square-divide it)
+# and free of small prime factors.  Both matter downstream: nrd(alpha) divides the new N,
+# and since J1 and J2 are twisted by bar(alpha) and alpha, each prime q | nrd(alpha) leaves
+# only a (1 - 1/q)^2 fraction of the vectors enumerated in EquivalentIdealsWithSameNorm
+# usable, which starves that search.
+def RandomPrimeNormTwist(p, qi, margin=12):
+    u = randint(0, p)                       # p+1 equally likely directions
+    if u < p:
+        b0, b1 = vector(ZZ, [1, u]), vector(ZZ, [0, p])
+    else:
+        b0, b1 = vector(ZZ, [0, 1]), vector(ZZ, [p, 0])
+    v0, v1 = lattice.ShortBasisDim2Euclidean(b0, b1)
+
+    M = 2**margin
+    while True:
+        a, b = randint(-M, M)*v0 + randint(-M, M)*v1
+        if (a + b) % 2 == 0:                # a^2 + b^2 is then even, never an odd prime
+            continue
+        n = ZZ(a**2 + b**2)
+        if is_pseudoprime(n):
+            return a + b*qi, n
+
+# the norm bound p^(3/4) * N^(1/4) * (3/4*log(p) + 1/4*log(N)) reachable by
+# EquivalentIdealsWithSameNorm. Evaluated over RealField because N may exceed the
+# exponent range of a double.
+def EquivalentIdealsWithSameNormBound(p, N, prec=100):
+    RF = RealField(prec)
+    return ceil(RF(p)**(RF(3)/4) * RF(N)**(RF(1)/4) * (3*RF(p).log() + RF(N).log()) / 4)
+
 # Given two O0-ideals I1, I2 with the same norm N,
 # return beta1 in I1 and beta2 in I2 s.t. qI1(beta1) = qI2(beta2) approx p^(3/4) * N^(1/4)
 def EquivalentIdealsWithSameNorm(I1, I2, N, norm_bound, num_vectors=10):
@@ -202,7 +242,7 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, norm_bound, num_vectors=10):
     assert norm(I1) == norm(I2) == N
     O0 = I1.left_order()
     p = O0.discriminant()
-    assert norm_bound >= ceil(p**(3/4) * N**(1/4) * (3/4*log(p) + 1/4*log(N)))
+    assert norm_bound >= EquivalentIdealsWithSameNormBound(p, N)
     Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace() for b1 in O0.basis() for b2 in O0.basis()])
     Q = O0.basis_matrix()
     Qinv = Q.inverse()
@@ -236,8 +276,10 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, norm_bound, num_vectors=10):
     L = IntegralLattice(Gram, Lbasis)
 
     # short solution for alpha2 * x * bar(alpha1) = 0 mod N with gcd(norm(x), N) = 1
+    # Gram is the trace form, so an enumerated value is 2*nrd; halve it before the gcd
+    # test, otherwise the condition is unsatisfiable whenever N is even
     B = floor(norm_bound**2 / (p * (log(p)**2)))
-    vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: gcd(newN, N) == 1, num_vectors=num_vectors)
+    vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: gcd(newN // 2, N) == 1, num_vectors=num_vectors)
     assert vlist, "No solution found in LatticeEnumeration"
     v = vlist[randint(0, len(vlist)-1)]
     x = sum(c * b for c, b in zip(v, O0.basis()))
@@ -268,7 +310,7 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, norm_bound, num_vectors=10):
 def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound,
                     KLPT_margin=40, EISN_vec_bound=20, SA_loop_bound=1000):
     assert Icom.left_order() == IskIchl.left_order()
-    _, _, qj, qk = Icom.quaternion_algebra().basis()
+    _, qi, qj, qk = Icom.quaternion_algebra().basis()
     O = Icom.left_order()
     p = Icom.quaternion_algebra().discriminant()
 
@@ -285,12 +327,31 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound,
         found = found and found2
     assert norm(J1) == norm(J2) == n1*n2
 
-    C, D = 0, 0
+    # randomize the class of (J_1, J_2)
     N = n1*n2
+    r = randint(0, p)
+    if r < p:
+        alpha = 1 + r*qi
+    else:
+        alpha = qi
+    n = alpha.reduced_norm()
+    c = 0
+    if n % 2 == 0:
+        c += 1
+    while not is_pseudoprime(n + c**2*p):
+        c += 2
+    alpha += c*qj
+    assert alpha.reduced_norm() == n + c**2*p == alpha.conjugate().reduced_norm()
+    J1 = EquivalentIdeal(J1, N*alpha)
+    J2 = EquivalentIdeal(J2, N*alpha.conjugate())
+    alpha2 = alpha.conjugate() * alpha2   # keep J2 == EquivalentIdeal(IskIchl, alpha2)
+    N = N * (n + c**2*p)
+
+    C, D = 0, 0
     while True:
         NCD = None
         while NCD is None or N > norm_bound or kronecker(l**e, N) != kronecker(NCD, N):
-            B = max(norm_bound, ceil(p**(3/4) * N**(1/4) * (3/4*log(p) + 1/4*log(N))))
+            B = max(norm_bound, EquivalentIdealsWithSameNormBound(p, N))
             J1, J2, _, beta2, newN = EquivalentIdealsWithSameNorm(J1, J2, N, B, EISN_vec_bound)
             assert norm(J1) == norm(J2) == newN
             alpha2 = beta2*alpha2 / N
