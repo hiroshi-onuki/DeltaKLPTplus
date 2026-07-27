@@ -196,38 +196,6 @@ def RandomFixedNormIdeal(O0, N):
     assert norm(I) == N
     return I, gamma*alpha
 
-# Sample alpha = a + b*qi with nrd(alpha) prime and the direction (a : b) mod P uniform
-# over P^1(F_p).
-#
-# The randomization in deltaKLPTforSign multiplies (bar(beta2)*beta1)^2/(n(beta1)*n(beta2))
-# mod P by (bar(x)/x)^2, where x = alpha mod P in O0/P = F_p^2.  That map kills F_p^* and is
-# 2-to-1 from P^1(F_p) onto the ((p+1)/2)-th roots of unity, so a uniform direction gives a
-# uniform twist.  Drawing the direction first and only then hunting for a prime norm keeps
-# the two independent: every point of the lattice below outside p*Z^2 has the direction we
-# asked for, so the primality search cannot bias it.
-#
-# A prime norm also makes alpha primitive (a common factor of a, b would square-divide it)
-# and free of small prime factors.  Both matter downstream: nrd(alpha) divides the new N,
-# and since J1 and J2 are twisted by bar(alpha) and alpha, each prime q | nrd(alpha) leaves
-# only a (1 - 1/q)^2 fraction of the vectors enumerated in EquivalentIdealsWithSameNorm
-# usable, which starves that search.
-def RandomPrimeNormTwist(p, qi, margin=12):
-    u = randint(0, p)                       # p+1 equally likely directions
-    if u < p:
-        b0, b1 = vector(ZZ, [1, u]), vector(ZZ, [0, p])
-    else:
-        b0, b1 = vector(ZZ, [0, 1]), vector(ZZ, [p, 0])
-    v0, v1 = lattice.ShortBasisDim2Euclidean(b0, b1)
-
-    M = 2**margin
-    while True:
-        a, b = randint(-M, M)*v0 + randint(-M, M)*v1
-        if (a + b) % 2 == 0:                # a^2 + b^2 is then even, never an odd prime
-            continue
-        n = ZZ(a**2 + b**2)
-        if is_pseudoprime(n):
-            return a + b*qi, n
-
 # the norm bound p^(3/4) * N^(1/4) * (3/4*log(p) + 1/4*log(N)) reachable by
 # EquivalentIdealsWithSameNorm. Evaluated over RealField because N may exceed the
 # exponent range of a double.
