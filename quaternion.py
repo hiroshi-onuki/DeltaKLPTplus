@@ -122,8 +122,8 @@ def StrongApproximation(O0, N, C, D, nrd, max_cnt=1000, condition=lambda nu: Tru
     p = O0.discriminant()
     Nrd_mu = p * (C**2 + D**2)
     assert kronecker(Nrd_mu, N) == kronecker(nrd, N)
-    lam = ZZ(sqrt(GF(N)(nrd)/GF(N)(Nrd_mu)))
-    rhs = ZZ((nrd - lam**2 * Nrd_mu) / N)
+    lam = 2 * ZZ(sqrt(GF(N)(nrd)/GF(N)(Nrd_mu)))
+    rhs = ZZ((4*nrd - lam**2 * Nrd_mu) / N)
     R = ZZ.quotient_ring(N)
 
     c = 1
@@ -134,19 +134,21 @@ def StrongApproximation(O0, N, C, D, nrd, max_cnt=1000, condition=lambda nu: Tru
     b1 = vector(ZZ, [0, N**2])
     beta1, beta0 = lattice.ShortBasisDim2Euclidean(b0, b1)
     target = vector(ZZ, [-lam*C - N*c, -lam*D - N*d])
-    bound = ZZ(floor(nrd / p))
+    bound = ZZ(floor(4*nrd / p))
 
     for v in lattice.EnumerateCloseVectorsDim2Euclidean(beta1, beta0, target, max_cnt, bound):
         Nc = N*c + v[0]
         Nd = N*d + v[1]
 
-        tmp = ZZ((nrd - p*((lam*C + Nc)**2 + (lam*D + Nd)**2)) / N**2)
+        tmp = ZZ((4*nrd - p*((lam*C + Nc)**2 + (lam*D + Nd)**2)) / N**2)
         a, b = SumOf2Squares(tmp)
         if a is not None and b is not None:
             nu = O0([N*a, N*b, lam*C + Nc, lam*D + Nd])
-            assert nu.reduced_norm() == nrd
-            if condition(nu):
-                return nu, True
+            if nu in O0*2:
+                nu = nu / 2
+                assert nu.reduced_norm() == nrd
+                if condition(nu):
+                    return nu, True
     return None, False
 
 # return J ~ I with nrd(J) is n1*n2
@@ -275,6 +277,21 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, norm_bound, num_vectors=10):
 
     return EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2), beta1, beta2, newN
 
+def QuaternionInRandomClass(p, qi, qj):
+    r = randint(0, p)
+    if r < p:
+        alpha = 1 + r*qi
+    else:
+        alpha = qi
+    n = alpha.reduced_norm()
+    c = 0
+    if n % 2 == 0:
+        c += 1
+    while not is_pseudoprime(n + c**2*p):
+        c += 2
+    alpha += c*qj
+    return alpha
+
 def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound,
                     KLPT_margin=40, EISN_vec_bound=20, SA_loop_bound=1000):
     assert Icom.left_order() == IskIchl.left_order()
@@ -294,56 +311,42 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound,
         J2, alpha2, found2 = KLPT(IskIchl, n1, n2)
         found = found and found2
     assert norm(J1) == norm(J2) == n1*n2
+    N = n1*n2
 
     # randomize the class of (J_1, J_2)
-    N = n1*n2
-    r = randint(0, p)
-    if r < p:
-        alpha = 1 + r*qi
-    else:
-        alpha = qi
-    n = alpha.reduced_norm()
-    c = 0
-    if n % 2 == 0:
-        c += 1
-    while not is_pseudoprime(n + c**2*p):
-        c += 2
-    alpha += c*qj
-    assert alpha.reduced_norm() == n + c**2*p == alpha.conjugate().reduced_norm()
+    alpha = QuaternionInRandomClass(p, qi, qj)
     J1 = EquivalentIdeal(J1, N*alpha)
     J2 = EquivalentIdeal(J2, N*alpha.conjugate())
     alpha2 = alpha.conjugate() * alpha2   # keep J2 == EquivalentIdeal(IskIchl, alpha2)
-    N = N * (n + c**2*p)
+    N = N * alpha.reduced_norm()
 
-    C, D = 0, 0
-    while True:
-        NCD = None
-        while NCD is None or N > norm_bound or kronecker(l**e, N) != kronecker(NCD, N):
-            B = max(norm_bound, EquivalentIdealsWithSameNormBound(p, N))
-            J1, J2, _, beta2, newN = EquivalentIdealsWithSameNorm(J1, J2, N, B, EISN_vec_bound)
-            assert norm(J1) == norm(J2) == newN
-            alpha2 = beta2*alpha2 / N
-            N = newN
-            beta1 = SmallGenerator(J1)
-            beta2 = SmallGenerator(J2)
-            C, D = IdealModConstraint(O, qj, qk, beta2, beta1, N)
-            NCD = p * (C**2 + D**2)
-        assert J2 == EquivalentIdeal(IskIchl, alpha2)
-        
-        def is_cyclic(nu):
-            if nu / 2 in O:
-                return False
-            O1 = J1.intersection(O*nu).right_order()
-            O2 = J2.right_order()
-            gamma = O2.isomorphism_to(O1, conjugator=True)
-            assert J1.intersection(O*nu) * gamma.inverse() * J2.conjugate() * gamma == O * gamma
-            return (alpha2.conjugate() * gamma) / 2 not in O
+    NCD = None
+    while NCD is None or N > norm_bound or kronecker(l**e, N) != kronecker(NCD, N):
+        B = max(norm_bound, EquivalentIdealsWithSameNormBound(p, N))
+        J1, J2, _, beta2, newN = EquivalentIdealsWithSameNorm(J1, J2, N, B, EISN_vec_bound)
+        assert norm(J1) == norm(J2) == newN
+        alpha2 = beta2*alpha2 / N
+        N = newN
+        beta1 = SmallGenerator(J1)
+        beta2 = SmallGenerator(J2)
+        C, D = IdealModConstraint(O, qj, qk, beta2, beta1, N)
+        NCD = p * (C**2 + D**2)
+    assert J2 == EquivalentIdeal(IskIchl, alpha2)
 
-        nu, found = StrongApproximation(O, N, C, D, l**e, SA_loop_bound, condition=is_cyclic)
-        if found:
-            assert beta2 * nu in J1
-            assert J1.intersection(O*nu) == J2 * nu
-            return J1.intersection(O*nu), nu
+    def is_cyclic(nu):
+        if nu / 2 in O:
+            return False
+        O1 = J1.intersection(O*nu).right_order()
+        O2 = J2.right_order()
+        gamma = O2.isomorphism_to(O1, conjugator=True)
+        assert J1.intersection(O*nu) * gamma.inverse() * J2.conjugate() * gamma == O * gamma
+        return (alpha2.conjugate() * gamma) / 2 not in O
+
+    nu, found = StrongApproximation(O, N, C, D, l**e, SA_loop_bound, condition=is_cyclic)
+    assert found
+    assert beta2 * nu in J1
+    assert J1.intersection(O*nu) == J2 * nu
+    return J1.intersection(O*nu), nu
 
 def Qlapoti(I, e, max_tries=10000):
     _, qi, _, _ = I.quaternion_algebra().basis()

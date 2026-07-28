@@ -32,9 +32,10 @@ class SQIsign:
             while not is_prime(Dmix):
                 Dmix += 2
             self.Dmix = Dmix    # the degree of phi_sk and phi_com, which satisfies the mixing property in the supersingular isogeny graph
-            self.EISN_norm_bound = ZZ(2)**265
+            self.EISN_norm_bound = ZZ(2)**265 # > p * (log p)**(3/4) ~ 2**260.24
             self.e_chl = ZZ(128)
-            self.e_rsp = ZZ(1080)
+            self.SA_num_vec = 120 # > 64 * (5/3)
+            self.e_rsp = ZZ(1060) # > log(p * EISN_norm_bound**3 * SA_num_vec ,2) ~ 2**1052.23
         else:
             raise ValueError("Unsupported security level")
 
@@ -66,7 +67,9 @@ class SQIsign:
         Ichl = self.E0withEnd.KernelToIdeal(a, b, self.e_chl)
         IskIchl = Isk.intersection(Ichl)
 
-        IcomIrsp, _ = quaternion.deltaKLPTforSign(Icom, IskIchl, 2, self.e_rsp, self.EISN_norm_bound)
+        IcomIrsp, _ = quaternion.deltaKLPTforSign(
+            Icom, IskIchl, 2, self.e_rsp, self.EISN_norm_bound,
+            40, 20, self.SA_num_vec)
         N = norm(IcomIrsp) / 2**self.e_rsp
         Icom_d = IcomIrsp + O0 * N
         assert Icom.right_order().isomorphism_to(Icom_d.right_order()) != None
