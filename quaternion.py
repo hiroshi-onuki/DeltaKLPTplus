@@ -219,56 +219,34 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, norm_bound, num_vectors=10):
     ZN = ZZ.quotient_ring(ZZ(N))
 
     # construct the lattice L consisting of vectors corresponding to solutions of alpha2 * x * bar(alpha1) = 0 mod N
-    alpha1 = SmallGenerator(I1)
-    alpha2 = SmallGenerator(I2)
-    MatN = matrix(ZN, Q * alpha1.conjugate().matrix('right') * alpha2.matrix('left') * Qinv)
-    w = None
-    i = -1
-    for col in MatN.columns():
-        for j in range(4):
-            if gcd(ZZ(col[j]), N) == 1:
-                w = col
-                i = j
-                break
-        if w is not None:
-            break
-    assert w is not None
-    Lbasis = []
-    for j in range(4):
-        v = vector(ZZ, [0, 0, 0, 0])
-        if j != i:
-            v[j] = 1
-            v[i] = ZZ(-w[i].inverse() * w[j])
-            assert vector(ZN, v).dot_product(w) == 0
-        else:
-            v[i] = N
-        Lbasis.append(v)
-    L = IntegralLattice(Gram, Lbasis)
+    L = (O0*N).intersection(I2.conjugate() * I1)
+    L = IntegralLattice(Gram, [vector(b) * Qinv for b in L.basis()])
 
     # short solution for alpha2 * x * bar(alpha1) = 0 mod N with gcd(norm(x), N) = 1
     # Gram is the trace form, so an enumerated value is 2*nrd; halve it before the gcd
     # test, otherwise the condition is unsatisfiable whenever N is even
-    B = floor(norm_bound**2 / (p * (log(p)**2)))
-    vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: gcd(newN // 2, N) == 1, num_vectors=num_vectors)
+    B = floor(norm_bound**2 / (p * (log(p)**2))) * N**2
+    vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: gcd(newN // (2*N**2), N) == 1, num_vectors=num_vectors)
     assert vlist, "No solution found in LatticeEnumeration"
     v = vlist[randint(0, len(vlist)-1)]
     x = sum(c * b for c, b in zip(v, O0.basis()))
+    x = x/N
     Nx = x.reduced_norm()
     assert Nx < B
+    alpha1 = SmallGenerator(I1)
+    alpha2 = SmallGenerator(I2)
     assert alpha2 * x * alpha1.conjugate() in O0 * N
     assert gcd(Nx, N) == 1
 
-    # construct the lattice L = I1 \cap (O0 * x + Z)
-    L1 = IntegralLattice(Gram, [vector(b) * Qinv for b in I1.basis()])
-    Ox = IntegralLattice(Gram, [vector(b*x) * Qinv for b in O0.basis()])
-    OxZ = Ox.overlattice([vector(O0(1)) * Qinv])
-    L = IntegralLattice(Gram, L1.intersection(OxZ).basis())
+    # construct the lattice L = Nx * (I1 \cap x^{-1} * I2 * x)
+    L = (I1 * Nx).intersection(x.conjugate() * I2 * x)
+    L = IntegralLattice(Gram, [vector(b) * Qinv for b in L.basis()])
 
-    B = N * norm_bound
-    vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_pseudoprime(ZZ(newN/(2*N))), num_vectors=num_vectors)
+    B = N * norm_bound * Nx**2
+    vlist = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_pseudoprime(ZZ(newN/(2*N*Nx**2))), num_vectors=num_vectors)
     assert vlist, "No solution found in LatticeEnumeration"
     v = vlist[randint(0, len(vlist)-1)]
-    beta1 = sum(c * b for c, b in zip(v, O0.basis()))
+    beta1 = sum(c * b for c, b in zip(v, O0.basis())) / Nx
     newN = ZZ(beta1.reduced_norm() / N)
 
     assert beta1 in I1
