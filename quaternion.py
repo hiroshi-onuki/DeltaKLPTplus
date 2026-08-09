@@ -222,6 +222,8 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, norm_bound, num_vectors=10):
     L = (O0*N).intersection(I2.conjugate() * I1)
     L = IntegralLattice(Gram, [vector(b) * Qinv for b in L.basis()])
 
+    x = IdealNormReduce(I1, I2)
+
     # short solution for alpha2 * x * bar(alpha1) = 0 mod N with gcd(norm(x), N) = 1
     # Gram is the trace form, so an enumerated value is 2*nrd; halve it before the gcd
     # test, otherwise the condition is unsatisfiable whenever N is even
@@ -255,6 +257,136 @@ def EquivalentIdealsWithSameNorm(I1, I2, N, norm_bound, num_vectors=10):
 
     return EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2), beta1, beta2, newN
 
+def IdealNormReduce(I1, I2):
+    N = norm(I1)
+    assert norm(I2) == N
+    O0 = I1.left_order()
+    p = O0.discriminant()
+    Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace() for b1 in O0.basis() for b2 in O0.basis()])
+    Q = O0.basis_matrix()
+    Qinv = Q.inverse()
+
+    # L = {x in O0 | I_2 x subseteq I_1}
+    L = (O0*N).intersection(I2.conjugate() * I1)
+    L = IntegralLattice(Gram, [vector(b) * Qinv for b in L.basis()])
+    x = L.LLL().basis()[0]
+    x = sum(c * b for c, b in zip(x, O0.basis()))
+    x = x / N
+    Nx = x.reduced_norm()
+    assert Nx < sqrt(p * N)
+
+    # L = Nx * (I1 \cap x^{-1} * I2 * x)
+    L = (I1 * Nx).intersection(x.conjugate() * I2 * x)
+    L = IntegralLattice(Gram, [vector(b) * Qinv for b in L.basis()])
+    beta1 = L.LLL().basis()[0]
+    beta1 = sum(c * b for c, b in zip(beta1, O0.basis())) / Nx
+    newN = ZZ(beta1.reduced_norm() / N)
+    assert newN < N * sqrt(p * Nx)
+    beta2 = x * beta1 * x.conjugate() / Nx
+    assert beta1 in I1
+    assert beta2 in I2
+    return EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2), beta1, beta2, newN
+
+def IdealForDelta(I1, I2, omega, target_norm):
+    N = norm(I1)
+    assert norm(I2) == N
+    _, _, qj, qk = I1.quaternion_algebra().basis()
+    O0 = I1.left_order()
+    p = O0.discriminant()
+    Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace() for b1 in O0.basis() for b2 in O0.basis()])
+    Q = O0.basis_matrix()
+    Qinv = Q.inverse()
+
+    # L = {x in O0 | I_2 x subseteq I_1}
+    L = (O0*N).intersection(I2.conjugate() * I1)
+    L = IntegralLattice(Gram, [vector(b) * Qinv for b in L.basis()])
+    B = 2*ceil(sqrt(p*N))*omega**2 * N**2
+    print(omega**2.5)
+    xs = lattice.LatticeEnumeration(L, B, condition=lambda newN: True, num_vectors= floor(omega**2.5))
+    print(f"IdealForDelta: {len(xs)} candidates found in LatticeEnumeration")
+
+    for x in xs:
+        x = sum(c * b for c, b in zip(x, O0.basis()))
+        x = x / N
+        Nx = x.reduced_norm()
+
+        # L = Nx * (I1 \cap x^{-1} * I2 * x)
+        L = (I1 * Nx).intersection(x.conjugate() * I2 * x)
+        L = IntegralLattice(Gram, [vector(b) * Qinv for b in L.basis()])
+        B = 2 * floor(sqrt(p * Nx)) * N * Nx**2 * omega
+        beta1s = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_pseudoprime(ZZ(newN/(2*N*Nx**2))), num_vectors=omega)
+        print(f"IdealForDelta: {len(beta1s)} candidates found in LatticeEnumeration for x with norm {Nx}")
+        for beta1 in beta1s:
+            beta1 = sum(c * b for c, b in zip(beta1, O0.basis()))
+            beta1 = beta1 / Nx
+            newN = ZZ(beta1.reduced_norm() / N)
+            assert newN < sqrt(p * Nx) * omega
+            beta2 = x * beta1 * x.conjugate() / Nx
+            assert beta1 in I1
+            assert beta2 in I2
+            J1 = EquivalentIdeal(I1, beta1)
+            J2 = EquivalentIdeal(I2, beta2)
+            gamma1 = SmallGenerator(J1)
+            gamma2 = SmallGenerator(J2)
+            C, D = IdealModConstraint(O0, qj, qk, gamma2, gamma1, newN)
+            if kronecker(target_norm, newN) == kronecker(p * (C**2 + D**2), newN):
+                return J1, J2, beta1, beta2, newN, C, D
+    assert False, "IdealForDelta: no solution found"
+
+def GeneralizedDeltaKLPT(Icom, IskIchl, l, e, norm_bound):
+    assert Icom.left_order() == IskIchl.left_order()
+    _, qi, qj, qk = Icom.quaternion_algebra().basis()
+    O = Icom.left_order()
+    p = Icom.quaternion_algebra().discriminant()
+    le = l**e
+
+    # bound for the original KLPT
+    B1 = ceil(p**(0.5))
+    B2 = ceil(p**(2.5)*log(p))
+    KLPT_margin = 40
+
+    found = False
+    while not found:
+        n1 = randint(2**KLPT_margin*B1, 2**KLPT_margin*B1 + B1)
+        n2 = randint(2**KLPT_margin*B2, 2**KLPT_margin*B2 + B2)
+        J1, _, found = KLPT(Icom, n1, n2)
+        J2, alpha2, found2 = KLPT(IskIchl, n1, n2)
+        found = found and found2
+    assert norm(J1) == norm(J2) == n1*n2
+    N = n1*n2
+
+    # randomize the class of (J_1, J_2)
+    alpha = QuaternionInRandomClass(p, qi, qj)
+    J1 = EquivalentIdeal(J1, N*alpha)
+    J2 = EquivalentIdeal(J2, N*alpha.conjugate())
+    alpha2 = alpha.conjugate() * alpha2
+    N = N * alpha.reduced_norm()
+
+    while N > norm_bound:
+        J1, J2, _, beta2, newN = IdealNormReduce(J1, J2)
+        alpha2 = beta2 * alpha2 / N
+        N = newN
+
+    omega = ceil((128*(3/4*log(p) + 1/4*log(N)))**(2/5))
+    J1, J2, _, beta2, N, C, D = IdealForDelta(J1, J2, omega, le)
+    alpha2 = beta2 * alpha2 / N
+    print(float(log(N, 2)))
+
+    def is_cyclic(nu):
+        if nu / 2 in O:
+            return False
+        O1 = J1.intersection(O*nu).right_order()
+        O2 = J2.right_order()
+        gamma = O2.isomorphism_to(O1, conjugator=True)
+        assert J1.intersection(O*nu) * gamma.inverse() * J2.conjugate() * gamma == O * gamma
+        return (alpha2.conjugate() * gamma) / 2 not in O
+
+    nu, found = StrongApproximation(O, N, C, D, le, 40000, condition=is_cyclic)
+    assert found
+    assert beta2 * nu in J1
+    assert J1.intersection(O*nu) == J2 * nu
+    return J1.intersection(O*nu), nu
+
 def QuaternionInRandomClass(p, qi, qj):
     r = randint(0, p)
     if r < p:
@@ -283,8 +415,8 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound,
 
     found = False
     while not found:
-        n1 = random_prime(2**KLPT_margin*B1, lbound=B1, proof=False)
-        n2 = random_prime(2**KLPT_margin*B2, lbound=B2, proof=False)
+        n1 = randint(2**KLPT_margin*B1, 2**KLPT_margin*B1 + B1)
+        n2 = randint(2**KLPT_margin*B2, 2**KLPT_margin*B2 + B2)
         J1, _, found = KLPT(Icom, n1, n2)
         J2, alpha2, found2 = KLPT(IskIchl, n1, n2)
         found = found and found2

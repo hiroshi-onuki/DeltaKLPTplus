@@ -35,7 +35,7 @@ class SQIsign:
             self.EISN_norm_bound = ZZ(2)**265 # > 8 * p * (log p)**(3/4) ~ 2**263.24
             self.e_chl = ZZ(128)
             self.SA_num_vec = 40000
-            self.e_rsp = ZZ(1070)
+            self.e_rsp = ZZ(1100)
         else:
             raise ValueError("Unsupported security level")
 
@@ -67,9 +67,7 @@ class SQIsign:
         Ichl = self.E0withEnd.KernelToIdeal(a, b, self.e_chl)
         IskIchl = Isk.intersection(Ichl)
 
-        IcomIrsp, _ = quaternion.deltaKLPTforSign(
-            Icom, IskIchl, 2, self.e_rsp, self.EISN_norm_bound,
-            40, 20, self.SA_num_vec)
+        IcomIrsp, _ = quaternion.GeneralizedDeltaKLPT(Icom, IskIchl, 2, self.e_rsp, self.p)
         N = norm(IcomIrsp) / 2**self.e_rsp
         Icom_d = IcomIrsp + O0 * N
         assert Icom.right_order().isomorphism_to(Icom_d.right_order()) != None
