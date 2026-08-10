@@ -301,9 +301,7 @@ def IdealForDelta(I1, I2, omega, target_norm):
     L = (O0*N).intersection(I2.conjugate() * I1)
     L = IntegralLattice(Gram, [vector(b) * Qinv for b in L.basis()])
     B = 2*ceil(sqrt(p*N))*omega**2 * N**2
-    print(omega**2.5)
     xs = lattice.LatticeEnumeration(L, B, condition=lambda newN: True, num_vectors= floor(omega**2.5))
-    print(f"IdealForDelta: {len(xs)} candidates found in LatticeEnumeration")
 
     for x in xs:
         x = sum(c * b for c, b in zip(x, O0.basis()))
@@ -368,8 +366,9 @@ def GeneralizedDeltaKLPT(Icom, IskIchl, l, e, norm_bound):
         N = newN
 
     omega = ceil((128*(3/4*log(p) + 1/4*log(N)))**(2/5))
-    J1, J2, _, beta2, N, C, D = IdealForDelta(J1, J2, omega, le)
+    J1, J2, _, beta2, newN, C, D = IdealForDelta(J1, J2, omega, le)
     alpha2 = beta2 * alpha2 / N
+    N = newN
     print(float(log(N, 2)))
 
     def is_cyclic(nu):
@@ -383,6 +382,7 @@ def GeneralizedDeltaKLPT(Icom, IskIchl, l, e, norm_bound):
 
     nu, found = StrongApproximation(O, N, C, D, le, 40000, condition=is_cyclic)
     assert found
+    beta2 = SmallGenerator(J2)
     assert beta2 * nu in J1
     assert J1.intersection(O*nu) == J2 * nu
     return J1.intersection(O*nu), nu
