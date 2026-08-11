@@ -118,7 +118,7 @@ def IdealModConstraint(O0, qj, qk, gamma, alpha, N):
     return C, D
 
 # Return a quaternion nu such that nu = Cj + Dk mod N and Nrd(nu) = nrd.
-def StrongApproximation(O0, N, C, D, nrd, max_cnt=1000, condition=lambda nu: True):
+def FullStrongApproximation(O0, N, C, D, nrd, max_cnt=1000, condition=lambda nu: True):
     p = O0.discriminant()
     Nrd_mu = p * (C**2 + D**2)
     assert kronecker(Nrd_mu, N) == kronecker(nrd, N)
@@ -166,7 +166,7 @@ def KLPT(I, n1, n2):
         gamma = FullRepresentInteger(L.left_order(), n1 * N)
         C, D = IdealModConstraint(L.left_order(), qj, qk, gamma, beta, N)
         pCD = p * (C**2 + D**2)
-    nu, found = StrongApproximation(L.left_order(), N, C, D, n2)
+    nu, found = FullStrongApproximation(L.left_order(), N, C, D, n2)
     if not found:
         return None, None, False
     assert gamma * nu in L
@@ -379,7 +379,7 @@ def GeneralizedDeltaKLPT(Icom, IskIchl, l, e, norm_bound):
         assert J1.intersection(O*nu) * gamma.inverse() * J2.conjugate() * gamma == O * gamma
         return (alpha2.conjugate() * gamma) / 2 not in O
 
-    nu, found = StrongApproximation(O, N, C, D, le, 40000, condition=is_cyclic)
+    nu, found = FullStrongApproximation(O, N, C, D, le, 40000, condition=is_cyclic)
     assert found
     beta2 = SmallGenerator(J2)
     assert beta2 * nu in J1
@@ -433,7 +433,7 @@ def GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, l, e, norm_bound):
         if is_pseudoprime(N):
             C, D = IdealModConstraint(O, qj, qk, SmallGenerator(J2), SmallGenerator(J1), N)
             if kronecker(l**e, N) == kronecker(p * (C**2 + D**2), N):
-                nu, found = StrongApproximation(O, N, C, D, le, 40000, condition=is_cyclic)
+                nu, found = FullStrongApproximation(O, N, C, D, le, 40000, condition=is_cyclic)
                 if found:
                     beta2 = SmallGenerator(J2)
                     assert beta2 * nu in J1
@@ -505,7 +505,7 @@ def deltaKLPTforSign(Icom, IskIchl, l, e, norm_bound,
         assert J1.intersection(O*nu) * gamma.inverse() * J2.conjugate() * gamma == O * gamma
         return (alpha2.conjugate() * gamma) / 2 not in O
 
-    nu, found = StrongApproximation(O, N, C, D, l**e, SA_loop_bound, condition=is_cyclic)
+    nu, found = FullStrongApproximation(O, N, C, D, l**e, SA_loop_bound, condition=is_cyclic)
     assert found
     assert beta2 * nu in J1
     assert J1.intersection(O*nu) == J2 * nu
