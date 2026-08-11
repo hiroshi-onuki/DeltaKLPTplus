@@ -67,7 +67,7 @@ class SQIsign:
         Ichl = self.E0withEnd.KernelToIdeal(a, b, self.e_chl)
         IskIchl = Isk.intersection(Ichl)
 
-        IcomIrsp, _ = quaternion.GeneralizedDeltaKLPT(Icom, IskIchl, 2, self.e_rsp, self.p)
+        IcomIrsp, _ = quaternion.GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, 2, self.e_rsp, self.p)
         N = norm(IcomIrsp) / 2**self.e_rsp
         Icom_d = IcomIrsp + O0 * N
         assert Icom.right_order().isomorphism_to(Icom_d.right_order()) != None

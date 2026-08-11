@@ -369,7 +369,6 @@ def GeneralizedDeltaKLPT(Icom, IskIchl, l, e, norm_bound):
     J1, J2, _, beta2, newN, C, D = IdealForDelta(J1, J2, omega, le)
     alpha2 = beta2 * alpha2 / N
     N = newN
-    print(float(log(N, 2)))
 
     def is_cyclic(nu):
         if nu / 2 in O:
@@ -386,6 +385,60 @@ def GeneralizedDeltaKLPT(Icom, IskIchl, l, e, norm_bound):
     assert beta2 * nu in J1
     assert J1.intersection(O*nu) == J2 * nu
     return J1.intersection(O*nu), nu
+
+def GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, l, e, norm_bound):
+    assert Icom.left_order() == IskIchl.left_order()
+    _, qi, qj, qk = Icom.quaternion_algebra().basis()
+    O = Icom.left_order()
+    p = Icom.quaternion_algebra().discriminant()
+    le = l**e
+
+    # bound for the original KLPT
+    B1 = ceil(p**(0.5))
+    B2 = ceil(p**(2.5)*log(p))
+    KLPT_margin = 40
+
+    found = False
+    while not found:
+        n1 = randint(2**KLPT_margin*B1, 2**KLPT_margin*B1 + B1)
+        n2 = randint(2**KLPT_margin*B2, 2**KLPT_margin*B2 + B2)
+        J1, _, found = KLPT(Icom, n1, n2)
+        J2, alpha2, found2 = KLPT(IskIchl, n1, n2)
+        found = found and found2
+    assert norm(J1) == norm(J2) == n1*n2
+    N = n1*n2
+
+    while True:
+        # randomize the class of (J_1, J_2)
+        alpha = QuaternionInRandomClass(p, qi, qj)
+        J1 = EquivalentIdeal(J1, N*alpha)
+        J2 = EquivalentIdeal(J2, N*alpha.conjugate())
+        alpha2 = alpha.conjugate() * alpha2
+        N = N * alpha.reduced_norm()
+
+        while N > norm_bound:
+            J1, J2, _, beta2, newN = IdealNormReduce(J1, J2)
+            alpha2 = beta2 * alpha2 / N
+            N = newN
+
+        def is_cyclic(nu):
+            if nu / 2 in O:
+                return False
+            O1 = J1.intersection(O*nu).right_order()
+            O2 = J2.right_order()
+            gamma = O2.isomorphism_to(O1, conjugator=True)
+            assert J1.intersection(O*nu) * gamma.inverse() * J2.conjugate() * gamma == O * gamma
+            return (alpha2.conjugate() * gamma) / 2 not in O
+
+        if is_pseudoprime(N):
+            C, D = IdealModConstraint(O, qj, qk, SmallGenerator(J2), SmallGenerator(J1), N)
+            if kronecker(l**e, N) == kronecker(p * (C**2 + D**2), N):
+                nu, found = StrongApproximation(O, N, C, D, le, 40000, condition=is_cyclic)
+                if found:
+                    beta2 = SmallGenerator(J2)
+                    assert beta2 * nu in J1
+                    assert J1.intersection(O*nu) == J2 * nu
+                    return J1.intersection(O*nu), nu
 
 def QuaternionInRandomClass(p, qi, qj):
     r = randint(0, p)
