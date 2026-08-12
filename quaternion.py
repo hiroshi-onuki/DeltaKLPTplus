@@ -1,6 +1,9 @@
+from xml.etree.ElementTree import PI
+
 from sage.all import ( # type: ignore
     ZZ,
     GF,
+    pi,
     kronecker,
     ceil,
     floor,
@@ -67,14 +70,18 @@ def EquivalentIdeal(I, beta):
 # return J ~ I with nrd(J) is prime
 def EquivalentRandomPrimeIdeal(I, constraint=lambda N: True):
     O = I.left_order()
-    basis = LLLBasis(I)
-    N = 0
-    a = O(0)
-    while not (is_pseudoprime(N) and constraint(N)):
-        cs = [randint(-100, 100) for _ in range(len(basis))]
-        a = sum(c * b for c, b in zip(cs, basis))
-        N = ZZ(a.reduced_norm() // norm(I))
-    return EquivalentIdeal(I, a), a, N
+    N = norm(I)
+    p = O.discriminant()
+    Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace() for b1 in O.basis() for b2 in O.basis()])
+    Q = O.basis_matrix()
+    Qinv = Q.inverse()
+
+    omega = 64
+    B = ceil(2*sqrt(2)/pi * sqrt(p * omega * log(2) * log(p)/2)) * N
+    L = IntegralLattice(Gram, [vector(b) * Qinv for b in I.basis()])
+    v = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_pseudoprime(ZZ(newN/(2*N))) and constraint(ZZ(newN/(2*N))), num_vectors=1)[0]
+    alpha = sum(c * b for c, b in zip(v, O.basis()))
+    return EquivalentIdeal(I, alpha), alpha, ZZ(alpha.reduced_norm() // N)
 
 # return J ~ I with small nrd(J)
 def SmallestEquivalentIdeal(I):
@@ -136,7 +143,9 @@ def FullStrongApproximation(O0, N, C, D, nrd, max_cnt=1000, condition=lambda nu:
     target = vector(ZZ, [-lam*C - N*c, -lam*D - N*d])
     bound = ZZ(floor(4*nrd / p))
 
-    for v in lattice.EnumerateCloseVectorsDim2Euclidean(beta1, beta0, target, max_cnt, bound):
+    vs = lattice.EnumerateCloseVectorsDim2Euclidean(beta1, beta0, target, max_cnt, bound)
+    print(f"FullStrongApproximation: {len(vs)}/{max_cnt} candidates found in LatticeEnumeration")
+    for v in vs:
         Nc = N*c + v[0]
         Nd = N*d + v[1]
 
@@ -151,24 +160,28 @@ def FullStrongApproximation(O0, N, C, D, nrd, max_cnt=1000, condition=lambda nu:
                     return nu, True
     return None, False
 
-# return J ~ I with nrd(J) is n1*n2
-def KLPT(I, n1, n2):
+# return J ~ I with nrd(J) is l**2
+def KLPT(I, l, e):
     p = I.quaternion_algebra().discriminant()
     O = I.left_order()
     _, _, qj, qk = I.quaternion_algebra().basis()
-    assert n1 > p**(0.5)
-    assert n2 > p**(2.5)
     L, alpha, N = EquivalentRandomPrimeIdeal(I)
     beta = SmallGenerator(L)
 
+    omega = 64
+    B_FRI = ZZ(ceil(16 * omega/pi * log(2) * p * log(p)))
+    e0 = ceil(log(B_FRI / N, l))
+    e1 = e - e0
+    num_vectors_SA = ceil(6*log(2) * omega * log(p))
+    print("num_vectors_SA = ", num_vectors_SA)
+
     pCD = None
-    while pCD is None or kronecker(n2, N) != kronecker(pCD, N):
-        gamma = FullRepresentInteger(L.left_order(), n1 * N)
+    while pCD is None or kronecker(l**e1, N) != kronecker(pCD, N):
+        gamma = FullRepresentInteger(L.left_order(), N * l**e0)
         C, D = IdealModConstraint(L.left_order(), qj, qk, gamma, beta, N)
         pCD = p * (C**2 + D**2)
-    nu, found = FullStrongApproximation(L.left_order(), N, C, D, n2)
-    if not found:
-        return None, None, False
+    nu, found = FullStrongApproximation(L.left_order(), N, C, D, l**e1, max_cnt=num_vectors_SA)
+    assert found
     assert gamma * nu in L
     assert gamma * nu * alpha / N in I
     return EquivalentIdeal(L, gamma * nu), gamma * nu * alpha / N, True
@@ -394,19 +407,17 @@ def GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, l, e, norm_bound):
     le = l**e
 
     # bound for the original KLPT
-    B1 = ceil(p**(0.5))
-    B2 = ceil(p**(2.5)*log(p))
-    KLPT_margin = 40
+    omega = 64
+    B_KLPT = 96 * (log(2)/pi * omega * p * log(p))**3
+    e_KLPT = ceil(log(B_KLPT, 2))
 
     found = False
     while not found:
-        n1 = randint(2**KLPT_margin*B1, 2**KLPT_margin*B1 + B1)
-        n2 = randint(2**KLPT_margin*B2, 2**KLPT_margin*B2 + B2)
-        J1, _, found = KLPT(Icom, n1, n2)
-        J2, alpha2, found2 = KLPT(IskIchl, n1, n2)
+        J1, _, found = KLPT(Icom, 2, e_KLPT)
+        J2, alpha2, found2 = KLPT(IskIchl, 2, e_KLPT)
         found = found and found2
-    assert norm(J1) == norm(J2) == n1*n2
-    N = n1*n2
+    assert norm(J1) == norm(J2) == 2**e_KLPT
+    N = 2**e_KLPT
 
     while True:
         # randomize the class of (J_1, J_2)
@@ -420,6 +431,7 @@ def GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, l, e, norm_bound):
             J1, J2, _, beta2, newN = IdealNormReduce(J1, J2)
             alpha2 = beta2 * alpha2 / N
             N = newN
+            print(f"GeneralizedDeltaKLPT_heuristic: reduced norm to {N}/{norm_bound}")
 
         def is_cyclic(nu):
             if nu / 2 in O:
