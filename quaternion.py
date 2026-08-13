@@ -144,7 +144,6 @@ def FullStrongApproximation(O0, N, C, D, nrd, max_cnt=1000, condition=lambda nu:
     bound = ZZ(floor(4*nrd / p))
 
     vs = lattice.EnumerateCloseVectorsDim2Euclidean(beta1, beta0, target, max_cnt, bound)
-    print(f"FullStrongApproximation: {len(vs)}/{max_cnt} candidates found in LatticeEnumeration")
     for v in vs:
         Nc = N*c + v[0]
         Nd = N*d + v[1]
@@ -173,7 +172,6 @@ def KLPT(I, l, e):
     e0 = ceil(log(B_FRI / N, l))
     e1 = e - e0
     num_vectors_SA = ceil(6*log(2) * omega * log(p))
-    print("num_vectors_SA = ", num_vectors_SA)
 
     pCD = None
     while pCD is None or kronecker(l**e1, N) != kronecker(pCD, N):
@@ -286,7 +284,7 @@ def IdealNormReduce(I1, I2):
     x = sum(c * b for c, b in zip(x, O0.basis()))
     x = x / N
     Nx = x.reduced_norm()
-    assert Nx < sqrt(p * N)
+    assert Nx < 2*sqrt(2)/pi * sqrt(p * N)
 
     # L = Nx * (I1 \cap x^{-1} * I2 * x)
     L = (I1 * Nx).intersection(x.conjugate() * I2 * x)
@@ -294,7 +292,7 @@ def IdealNormReduce(I1, I2):
     beta1 = L.LLL().basis()[0]
     beta1 = sum(c * b for c, b in zip(beta1, O0.basis())) / Nx
     newN = ZZ(beta1.reduced_norm() / N)
-    assert newN < N * sqrt(p * Nx)
+    assert newN < 2*sqrt(2)/pi * N * sqrt(p * Nx)
     beta2 = x * beta1 * x.conjugate() / Nx
     assert beta1 in I1
     assert beta2 in I2
@@ -326,7 +324,6 @@ def IdealForDelta(I1, I2, omega, target_norm):
         L = IntegralLattice(Gram, [vector(b) * Qinv for b in L.basis()])
         B = 2 * floor(sqrt(p * Nx)) * N * Nx**2 * omega
         beta1s = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_pseudoprime(ZZ(newN/(2*N*Nx**2))), num_vectors=omega)
-        print(f"IdealForDelta: {len(beta1s)} candidates found in LatticeEnumeration for x with norm {Nx}")
         for beta1 in beta1s:
             beta1 = sum(c * b for c, b in zip(beta1, O0.basis()))
             beta1 = beta1 / Nx
@@ -431,7 +428,6 @@ def GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, l, e, norm_bound):
             J1, J2, _, beta2, newN = IdealNormReduce(J1, J2)
             alpha2 = beta2 * alpha2 / N
             N = newN
-            print(f"GeneralizedDeltaKLPT_heuristic: reduced norm to {N}/{norm_bound}")
 
         def is_cyclic(nu):
             if nu / 2 in O:
