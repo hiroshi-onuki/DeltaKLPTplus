@@ -226,6 +226,7 @@ def IdealNormReduce(I1, I2):
     x = x / N
     Nx = x.reduced_norm()
     assert Nx < 2*sqrt(2)/pi * sqrt(p * N)
+    assert Nx % p != 0
 
     # L = Nx * (I1 \cap x^{-1} * I2 * x)
     L = (I1 * Nx).intersection(x.conjugate() * I2 * x)
@@ -234,6 +235,7 @@ def IdealNormReduce(I1, I2):
     beta1 = sum(c * b for c, b in zip(beta1, O0.basis())) / Nx
     newN = ZZ(beta1.reduced_norm() / N)
     assert newN < 2*sqrt(2)/pi * N * sqrt(p * Nx)
+    assert newN % p != 0
     beta2 = x * beta1 * x.conjugate() / Nx
     assert beta1 in I1
     assert beta2 in I2
