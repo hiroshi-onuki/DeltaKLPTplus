@@ -163,6 +163,7 @@ class SQIsign:
         c0without_chl, c1b, c1f, c2b, c2f, isP1b, isP1f, isP2b, isP2f = rsp
         c0 = c0without_chl * 2**self.e_chl + chl
         Epk = pk
+        Epk.set_order((self.p + 1)**2, check=False)  # pk may come from outside this session
         Ppk, Qpk = self._deterministic_torsion_basis(Epk, self.E0withEnd.e)
         K = 2**(e - e0) * (Ppk + c0 * Qpk)
         phi = Epk.isogeny(K, model='montgomery', algorithm='factored')
@@ -209,8 +210,9 @@ class SQIsign:
         e = self.E0withEnd.e
         e0 = self.e_chl + self.e_rsp - 4*e
         Epk = pk
+        Epk.set_order((self.p + 1)**2, check=False)  # pk may come from outside this session
         Ppk, Qpk = self._deterministic_torsion_basis(Epk, self.E0withEnd.e)
-        
+
         c0without_chl = randint(0, 2**(e0 - self.e_chl) - 1)
         c0 = c0without_chl * 2**self.e_chl + chl
         K = 2**(e - e0) * (Ppk + c0 * Qpk)
@@ -277,6 +279,10 @@ class SQIsign:
         Z = min((A2, u + t, u - t), key=util.fp2_order_key)
         Aprime = util.deterministic_sqrt(Z)
         En = EllipticCurve(F, [0, Aprime, 0, 1, 0])
+        # All curves in the scheme are supersingular with (p+1)^2 rational
+        # points. Declaring the order here (isogeny codomains inherit it) avoids
+        # an expensive point counting inside every point.order() call.
+        En.set_order((F.characteristic() + 1)**2, check=False)
         if len(points) == 0:
             return En
 
