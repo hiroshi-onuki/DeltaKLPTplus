@@ -226,7 +226,7 @@ def IdealNormReduce(I1, I2):
     x = x / N
     Nx = x.reduced_norm()
     assert Nx < 2*sqrt(2)/pi * sqrt(p * N)
-    assert Nx % p != 0
+    assert Nx % p != 0, "Nx mod p = {}".format(Nx % p)
 
     # L = Nx * (I1 \cap x^{-1} * I2 * x)
     L = (I1 * Nx).intersection(x.conjugate() * I2 * x)
@@ -357,11 +357,11 @@ def GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, l, e, norm_bound):
 
     found = False
     while not found:
-        J1, _, found = KLPT(Icom, 2, e_KLPT)
-        J2, alpha2, found2 = KLPT(IskIchl, 2, e_KLPT)
+        I1, _, found = KLPT(Icom, 2, e_KLPT)
+        I2, alpha2_0, found2 = KLPT(IskIchl, 2, e_KLPT)
         found = found and found2
-    assert norm(J1) == norm(J2) == 2**e_KLPT
-    N = 2**e_KLPT
+    assert norm(I1) == norm(I2) == 2**e_KLPT
+    N0 = 2**e_KLPT
 
     while True:
         # randomize the class of (J_1, J_2)
@@ -370,10 +370,10 @@ def GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, l, e, norm_bound):
             alpha = 1 + r*qi
         else:
             alpha = qi
-        J1 = EquivalentIdeal(J1, N*alpha)
-        J2 = EquivalentIdeal(J2, N*alpha.conjugate())
-        alpha2 = alpha.conjugate() * alpha2
-        N = N * alpha.reduced_norm()
+        J1 = EquivalentIdeal(I1, N0*alpha)
+        J2 = EquivalentIdeal(I2, N0*alpha.conjugate())
+        alpha2 = alpha.conjugate() * alpha2_0
+        N = N0 * alpha.reduced_norm()
 
         while N > norm_bound:
             J1, J2, _, beta2, newN = IdealNormReduce(J1, J2)

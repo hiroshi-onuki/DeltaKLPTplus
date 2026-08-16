@@ -109,7 +109,7 @@ class SQIsign:
         lo = 2**(e0 + (2*k - 1)*e) * nIsk
         ImImp2f = Iall + O0 * hi
         Im = ImImp2f + O0 * lo
-        Im, beta, _ = quaternion.EquivalentRandomPrimeIdeal(Im)
+        Im, beta, _ = quaternion.EquivalentPrimeIdeal(Im)
         Imp2f = ImImp2f * (beta.conjugate() / lo) + O0 * 2**e
         Imp2b = O0 * beta.conjugate() + O0 * 2**e
         return Im, Imp2b, Imp2f
