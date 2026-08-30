@@ -355,25 +355,23 @@ def GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, l, e, norm_bound):
     B_KLPT = 96 * (log(2)/pi * omega * p * log(p))**3
     e_KLPT = ceil(log(B_KLPT, 2))
 
-    found = False
-    while not found:
-        I1, _, found = KLPT(Icom, 2, e_KLPT)
-        I2, alpha2_0, found2 = KLPT(IskIchl, 2, e_KLPT)
-        found = found and found2
-    assert norm(I1) == norm(I2) == 2**e_KLPT
-    N0 = 2**e_KLPT
+    J1, _, found1 = KLPT(Icom, 2, e_KLPT)
+    J2, alpha2, found2 = KLPT(IskIchl, 2, e_KLPT)
+    assert found1 and found2
+    assert norm(J1) == norm(J2) == 2**e_KLPT
+    N = 2**e_KLPT
 
     while True:
-        # randomize the class of (J_1, J_2)
         r = randint(0, p)
-        if r < p:
-            alpha = 1 + r*qi
-        else:
+        if r == p:
             alpha = qi
-        J1 = EquivalentIdeal(I1, N0*alpha)
-        J2 = EquivalentIdeal(I2, N0*alpha.conjugate())
-        alpha2 = alpha.conjugate() * alpha2_0
-        N = N0 * alpha.reduced_norm()
+        else:
+            v, _ = lattice.ShortBasisDim2Euclidean(vector(ZZ, [1, r]), vector(ZZ, [0, p]))
+            alpha = v[0] + v[1]*qi
+        J1 = EquivalentIdeal(J1, N*alpha)
+        J2 = EquivalentIdeal(J2, N*alpha.conjugate())
+        alpha2 = alpha.conjugate() * alpha2
+        N = N * ZZ(alpha.reduced_norm())
 
         while N > norm_bound:
             J1, J2, _, beta2, newN = IdealNormReduce(J1, J2)
@@ -383,16 +381,16 @@ def GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, l, e, norm_bound):
         def is_cyclic(nu):
             if nu / 2 in O:
                 return False
-            O1 = J1.intersection(O*nu).right_order()
-            O2 = J2.right_order()
-            gamma = O2.isomorphism_to(O1, conjugator=True)
-            assert J1.intersection(O*nu) * gamma.inverse() * J2.conjugate() * gamma == O * gamma
-            return (alpha2.conjugate() * gamma) / 2 not in O
+            I = IskIchl.conjugate() * J1.intersection(O*nu)
+            check, alpha = I.is_principal(True)
+            assert check
+            return (alpha / 2) not in O
 
         if is_pseudoprime(N):
             C, D = IdealModConstraint(O, qj, qk, SmallGenerator(J2), SmallGenerator(J1), N)
             if kronecker(l**e, N) == kronecker(p * (C**2 + D**2), N):
                 nu, found = FullStrongApproximation(O, N, C, D, le, 40000, condition=is_cyclic)
+                assert found
                 if found:
                     beta2 = SmallGenerator(J2)
                     assert beta2 * nu in J1
