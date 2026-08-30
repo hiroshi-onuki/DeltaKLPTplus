@@ -356,7 +356,7 @@ def GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, l, e, norm_bound):
     e_KLPT = ceil(log(B_KLPT, 2))
 
     J1, _, found1 = KLPT(Icom, 2, e_KLPT)
-    J2, alpha2, found2 = KLPT(IskIchl, 2, e_KLPT)
+    J2, _, found2 = KLPT(IskIchl, 2, e_KLPT)
     assert found1 and found2
     assert norm(J1) == norm(J2) == 2**e_KLPT
     N = 2**e_KLPT
@@ -370,12 +370,10 @@ def GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, l, e, norm_bound):
             alpha = v[0] + v[1]*qi
         J1 = EquivalentIdeal(J1, N*alpha)
         J2 = EquivalentIdeal(J2, N*alpha.conjugate())
-        alpha2 = alpha.conjugate() * alpha2
         N = N * ZZ(alpha.reduced_norm())
 
         while N > norm_bound:
             J1, J2, _, beta2, newN = IdealNormReduce(J1, J2)
-            alpha2 = beta2 * alpha2 / N
             N = newN
 
         def is_cyclic(nu):
