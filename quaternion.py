@@ -62,6 +62,12 @@ def SmallGenerator(I):
         n = a.reduced_norm()
     return a
 
+def SmallestGenerator(I):
+    basis = LLLBasis(I)
+    a = basis[0]
+    assert gcd(a.reduced_norm(), norm(I)) == norm(I)
+    return a
+
 # return I*bar(beta)/norm(I)
 def EquivalentIdeal(I, beta):
     assert beta in I
@@ -165,7 +171,7 @@ def KLPT(I, l, e):
     O = I.left_order()
     _, _, qj, qk = I.quaternion_algebra().basis()
     L, alpha, N = EquivalentPrimeIdeal(I)
-    beta = SmallGenerator(L)
+    beta = SmallestGenerator(L)
 
     omega = 64
     B_FRI = ZZ(ceil(16 * omega/pi * log(2) * p * log(p)))
@@ -241,108 +247,6 @@ def IdealNormReduce(I1, I2):
     assert beta2 in I2
     return EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2), beta1, beta2, newN
 
-def IdealForDelta(I1, I2, omega, target_norm):
-    N = norm(I1)
-    assert norm(I2) == N
-    _, _, qj, qk = I1.quaternion_algebra().basis()
-    O0 = I1.left_order()
-    p = O0.discriminant()
-    Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace() for b1 in O0.basis() for b2 in O0.basis()])
-    Q = O0.basis_matrix()
-    Qinv = Q.inverse()
-
-    # L = {x in O0 | I_2 x subseteq I_1}
-    L = (O0*N).intersection(I2.conjugate() * I1)
-    L = IntegralLattice(Gram, [vector(b) * Qinv for b in L.basis()])
-    B = 2*ceil(sqrt(p*N))*omega**2 * N**2
-    xs = lattice.LatticeEnumeration(L, B, condition=lambda newN: True, num_vectors= floor(omega**2.5))
-
-    for x in xs:
-        x = sum(c * b for c, b in zip(x, O0.basis()))
-        x = x / N
-        Nx = x.reduced_norm()
-
-        # L = Nx * (I1 \cap x^{-1} * I2 * x)
-        L = (I1 * Nx).intersection(x.conjugate() * I2 * x)
-        L = IntegralLattice(Gram, [vector(b) * Qinv for b in L.basis()])
-        B = 2 * floor(sqrt(p * Nx)) * N * Nx**2 * omega
-        beta1s = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_pseudoprime(ZZ(newN/(2*N*Nx**2))), num_vectors=omega)
-        for beta1 in beta1s:
-            beta1 = sum(c * b for c, b in zip(beta1, O0.basis()))
-            beta1 = beta1 / Nx
-            newN = ZZ(beta1.reduced_norm() / N)
-            assert newN < sqrt(p * Nx) * omega
-            beta2 = x * beta1 * x.conjugate() / Nx
-            assert beta1 in I1
-            assert beta2 in I2
-            J1 = EquivalentIdeal(I1, beta1)
-            J2 = EquivalentIdeal(I2, beta2)
-            gamma1 = SmallGenerator(J1)
-            gamma2 = SmallGenerator(J2)
-            C, D = IdealModConstraint(O0, qj, qk, gamma2, gamma1, newN)
-            if kronecker(target_norm, newN) == kronecker(p * (C**2 + D**2), newN):
-                return J1, J2, beta1, beta2, newN, C, D
-    assert False, "IdealForDelta: no solution found"
-
-def GeneralizedDeltaKLPT(Icom, IskIchl, l, e, norm_bound):
-    assert Icom.left_order() == IskIchl.left_order()
-    _, qi, qj, qk = Icom.quaternion_algebra().basis()
-    O = Icom.left_order()
-    p = Icom.quaternion_algebra().discriminant()
-    le = l**e
-
-    # bound for the original KLPT
-    B1 = ceil(p**(0.5))
-    B2 = ceil(p**(2.5)*log(p))
-    KLPT_margin = 40
-
-    found = False
-    while not found:
-        n1 = randint(2**KLPT_margin*B1, 2**KLPT_margin*B1 + B1)
-        n2 = randint(2**KLPT_margin*B2, 2**KLPT_margin*B2 + B2)
-        J1, _, found = KLPT(Icom, n1, n2)
-        J2, alpha2, found2 = KLPT(IskIchl, n1, n2)
-        found = found and found2
-    assert norm(J1) == norm(J2) == n1*n2
-    N = n1*n2
-
-    # randomize the class of (J_1, J_2)
-    r = randint(0, p)
-    if r < p:
-        alpha = 1 + r*qi
-    else:
-        alpha = qi
-    J1 = EquivalentIdeal(J1, N*alpha)
-    J2 = EquivalentIdeal(J2, N*alpha.conjugate())
-    alpha2 = alpha.conjugate() * alpha2
-    N = N * alpha.reduced_norm()
-
-    while N > norm_bound:
-        J1, J2, _, beta2, newN = IdealNormReduce(J1, J2)
-        alpha2 = beta2 * alpha2 / N
-        N = newN
-
-    omega = ceil((128*(3/4*log(p) + 1/4*log(N)))**(2/5))
-    J1, J2, _, beta2, newN, C, D = IdealForDelta(J1, J2, omega, le)
-    alpha2 = beta2 * alpha2 / N
-    N = newN
-
-    def is_cyclic(nu):
-        if nu / 2 in O:
-            return False
-        O1 = J1.intersection(O*nu).right_order()
-        O2 = J2.right_order()
-        gamma = O2.isomorphism_to(O1, conjugator=True)
-        assert J1.intersection(O*nu) * gamma.inverse() * J2.conjugate() * gamma == O * gamma
-        return (alpha2.conjugate() * gamma) / 2 not in O
-
-    nu, found = FullStrongApproximation(O, N, C, D, le, 40000, condition=is_cyclic)
-    assert found
-    beta2 = SmallGenerator(J2)
-    assert beta2 * nu in J1
-    assert J1.intersection(O*nu) == J2 * nu
-    return J1.intersection(O*nu), nu
-
 def GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, l, e, norm_bound):
     assert Icom.left_order() == IskIchl.left_order()
     _, qi, qj, qk = Icom.quaternion_algebra().basis()
@@ -385,12 +289,12 @@ def GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, l, e, norm_bound):
             return (alpha / 2) not in O
 
         if is_pseudoprime(N):
-            C, D = IdealModConstraint(O, qj, qk, SmallGenerator(J2), SmallGenerator(J1), N)
+            C, D = IdealModConstraint(O, qj, qk, SmallestGenerator(J2), SmallestGenerator(J1), N)
             if kronecker(l**e, N) == kronecker(p * (C**2 + D**2), N):
                 nu, found = FullStrongApproximation(O, N, C, D, le, 40000, condition=is_cyclic)
                 assert found
                 if found:
-                    beta2 = SmallGenerator(J2)
+                    beta2 = SmallestGenerator(J2)
                     assert beta2 * nu in J1
                     assert J1.intersection(O*nu) == J2 * nu
                     return J1.intersection(O*nu), nu
