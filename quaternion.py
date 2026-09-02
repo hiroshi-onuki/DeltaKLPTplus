@@ -19,7 +19,6 @@ from sage.all import ( # type: ignore
     IntegralLattice,
     log,
     set_random_seed,
-    inverse_mod,
 )
 from sage.rings.factorint import factor_trial_division # type: ignore
 from util import deterministic_sqrt_mod
@@ -136,9 +135,9 @@ def IdealModConstraint(O0, qj, qk, gamma, alpha, N):
 # Return a quaternion nu such that nu = Cj + Dk mod N and Nrd(nu) = nrd.
 def FullStrongApproximation(O0, N, C, D, nrd, max_cnt=1000, condition=lambda nu: True):
     p = O0.discriminant()
-    Nrd_mu = p * (C**2 + D**2)
+    Nrd_mu = ZZ(p * (C**2 + D**2))
     assert kronecker(Nrd_mu, N) == kronecker(nrd, N)
-    lam = 2 * deterministic_sqrt_mod(nrd * inverse_mod(Nrd_mu, N), N)
+    lam = 2 * deterministic_sqrt_mod(nrd * Nrd_mu.inverse_mod(N), N)
     rhs = ZZ((4*nrd - lam**2 * Nrd_mu) / N)
     R = ZZ.quotient_ring(N)
 

@@ -1,4 +1,4 @@
-from sage.all import (
+from sage.all import ( # type: ignore
     matrix,
     sqrt,
     ZZ,
