@@ -91,9 +91,7 @@ def SmallestEquivalentIdeal(I):
     return EquivalentIdeal(I, basis[0]), basis[0]
 
 # return gamma in O0 s.t. nrd(gamma) = n
-def FullRepresentInteger(O0, n, seed=None):
-    if seed is not None:
-        set_random_seed(seed)
+def FullRepresentInteger(O0, n):
     p = O0.discriminant()
     assert n > p, "RepresentInteger requires n > p"
 
@@ -109,6 +107,26 @@ def FullRepresentInteger(O0, n, seed=None):
                 gamma = O0([x, y, z, t]) / 2
                 assert gamma.reduced_norm() == n
                 return gamma
+
+# return gamma in O0 s.t. nrd(gamma) = n
+def FullRepresentIntegerDeterministic(O0, n, seed):
+    p = O0.discriminant()
+    assert n > p, "RepresentInteger requires n > p"
+
+    B = floor(sqrt(4*n/p))
+    for z in range(B+1):
+        for t in range(B+1):
+            z = z + seed % (B+1)
+            t = t + seed % (B+1)
+            x, y = SumOf2Squares(4*n - p * (z**2 + t**2))
+            if x is None or y is None:
+                continue
+            if (x - t) % 2 == (y - z) % 2 == 0:
+                if gcd([(x-t)//2, (y-z)//2, z, t]) == 1:
+                    gamma = O0([x, y, z, t]) / 2
+                    assert gamma.reduced_norm() == n
+                    return gamma
+
 
 # return C, D s.t. gamma * (C*qj + D*qk) in O0*alpha + O0*N
 def IdealModConstraint(O0, qj, qk, gamma, alpha, N):
@@ -178,10 +196,10 @@ def KLPT(I, l, e, omega):
     pCD = None
     seed = 0
     while pCD is None or kronecker(l**e1, N) != kronecker(pCD, N):
-        gamma = FullRepresentInteger(L.left_order(), N * l**e0, seed=seed)
+        gamma = FullRepresentIntegerDeterministic(L.left_order(), N * l**e0, seed)
         C, D = IdealModConstraint(L.left_order(), qj, qk, gamma, beta, N)
         pCD = p * (C**2 + D**2)
-        seed += 1
+        seed += 1000
     nu, found = FullStrongApproximation(L.left_order(), N, C, D, l**e1, max_cnt=num_vectors_SA)
     assert found
     assert gamma * nu in L
@@ -245,7 +263,7 @@ def IdealNormReduce(I1, I2):
     assert beta2 in I2
     return EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2), beta1, beta2, newN
 
-def DeltaKLPT_plus(Icom, IskIchl, l, e, omega):
+def DeltaKLPT_plus(Icom, IskIchl, l, e, omega, count_iter=False):
     assert Icom.left_order() == IskIchl.left_order()
     _, qi, qj, qk = Icom.quaternion_algebra().basis()
     O = Icom.left_order()
@@ -262,6 +280,7 @@ def DeltaKLPT_plus(Icom, IskIchl, l, e, omega):
     assert norm(J1) == norm(J2) == 2**e_KLPT
     N = 2**e_KLPT
 
+    iteration_count = 0
     while True:
         r = randint(0, p)
         if r == p:
@@ -276,6 +295,7 @@ def DeltaKLPT_plus(Icom, IskIchl, l, e, omega):
         while N > p:
             J1, J2, _, beta2, newN = IdealNormReduce(J1, J2)
             N = newN
+            iteration_count += 1
 
         def is_cyclic(nu):
             if nu / 2 in O:
@@ -295,6 +315,8 @@ def DeltaKLPT_plus(Icom, IskIchl, l, e, omega):
                     beta2 = SmallestGenerator(J2)
                     assert beta2 * nu in J1
                     assert J1.intersection(O*nu) == J2 * nu
+                    if count_iter:
+                        return J1.intersection(O*nu), nu, iteration_count
                     return J1.intersection(O*nu), nu
 
 def Qlapoti(I, e, max_tries=10000):
