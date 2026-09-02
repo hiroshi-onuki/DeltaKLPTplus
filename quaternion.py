@@ -259,7 +259,7 @@ def GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, l, e, norm_bound):
     le = l**e
 
     # bound for the original KLPT
-    omega = 64
+    omega = 128
     B_KLPT = 96 * (log(2)/pi * omega * p * log(p))**3
     e_KLPT = ceil(log(B_KLPT, 2))
 

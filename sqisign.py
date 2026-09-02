@@ -32,10 +32,8 @@ class SQIsign:
             while not is_prime(Dmix):
                 Dmix += 2
             self.Dmix = Dmix    # the degree of phi_sk and phi_com, which satisfies the mixing property in the supersingular isogeny graph
-            self.EISN_norm_bound = ZZ(2)**265 # > 8 * p * (log p)**(3/4) ~ 2**263.24
             self.e_chl = ZZ(128)
-            self.SA_num_vec = 40000
-            self.e_rsp = ZZ(1100)
+            self.e_rsp = ZZ(1016)
         else:
             raise ValueError("Unsupported security level")
 
