@@ -8,6 +8,9 @@ from sage.all import ( # type: ignore
     norm,
     inverse_mod,
     randint,
+    log,
+    ceil,
+    pi,
 )
 import hashlib
 import special_curve
@@ -22,6 +25,7 @@ class SQIsign:
         if sec_level == 1:
             # use Sage Integers (ZZ) so downstream exact arithmetic (e.g. the
             # pairing exponent in special_curve) is not turned into Python floats
+            self.sec_lambda = ZZ(128)
             self.e = ZZ(248)
             self.f = ZZ(5)
             p = 2**self.e * self.f - 1
@@ -32,8 +36,8 @@ class SQIsign:
             while not is_prime(Dmix):
                 Dmix += 2
             self.Dmix = Dmix    # the degree of phi_sk and phi_com, which satisfies the mixing property in the supersingular isogeny graph
-            self.e_chl = ZZ(128)
-            self.e_rsp = ZZ(1016)
+            self.e_chl = self.sec_lambda
+            self.e_rsp = self._response_length(p, self.sec_lambda)
         else:
             raise ValueError("Unsupported security level")
 
@@ -65,7 +69,7 @@ class SQIsign:
         Ichl = self.E0withEnd.KernelToIdeal(a, b, self.e_chl)
         IskIchl = Isk.intersection(Ichl)
 
-        IcomIrsp, _ = quaternion.GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, 2, self.e_rsp, self.p)
+        IcomIrsp, _ = quaternion.DeltaKLPT_plus(Icom, IskIchl, 2, self.e_rsp, self.sec_lambda)
         N = norm(IcomIrsp) / 2**self.e_rsp
         Icom_d = IcomIrsp + O0 * N
         assert Icom.right_order().isomorphism_to(Icom_d.right_order()) != None
@@ -107,7 +111,7 @@ class SQIsign:
         lo = 2**(e0 + (2*k - 1)*e) * nIsk
         ImImp2f = Iall + O0 * hi
         Im = ImImp2f + O0 * lo
-        Im, beta, _ = quaternion.EquivalentPrimeIdeal(Im)
+        Im, beta, _ = quaternion.EquivalentPrimeIdeal(Im, self.sec_lambda)
         Imp2f = ImImp2f * (beta.conjugate() / lo) + O0 * 2**e
         Imp2b = O0 * beta.conjugate() + O0 * 2**e
         return Im, Imp2b, Imp2f
@@ -252,6 +256,10 @@ class SQIsign:
         com, is_cyclic = self.RecoverCommitment(pk, chl, rsp)
         assert is_cyclic
         return com, rsp
+
+    @staticmethod
+    def _response_length(p, omega):
+        return ceil(log(25*log(2)/(6*pi) * omega * p**4 * log(p), 2))
 
     @staticmethod
     def _normalize_curve(E, points=()):

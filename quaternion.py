@@ -74,7 +74,7 @@ def EquivalentIdeal(I, beta):
     return I * (beta.conjugate() / norm(I))
 
 # return J ~ I with nrd(J) is prime
-def EquivalentPrimeIdeal(I, constraint=lambda N: True):
+def EquivalentPrimeIdeal(I, omega, constraint=lambda N: True):
     O = I.left_order()
     N = norm(I)
     p = O.discriminant()
@@ -82,7 +82,6 @@ def EquivalentPrimeIdeal(I, constraint=lambda N: True):
     Q = O.basis_matrix()
     Qinv = Q.inverse()
 
-    omega = 64
     B = ceil(2*sqrt(2)/pi * sqrt(p * omega * log(2) * log(p)/2)) * N
     L = IntegralLattice(Gram, [vector(b) * Qinv for b in I.basis()])
     v = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_pseudoprime(ZZ(newN/(2*N))) and constraint(ZZ(newN/(2*N))), num_vectors=1)[0]
@@ -168,14 +167,13 @@ def FullStrongApproximation(O0, N, C, D, nrd, max_cnt=1000, condition=lambda nu:
     return None, False
 
 # return J ~ I with nrd(J) is l**2
-def KLPT(I, l, e):
+def KLPT(I, l, e, omega):
     p = I.quaternion_algebra().discriminant()
     O = I.left_order()
     _, _, qj, qk = I.quaternion_algebra().basis()
-    L, alpha, N = EquivalentPrimeIdeal(I)
+    L, alpha, N = EquivalentPrimeIdeal(I, omega)
     beta = SmallestGenerator(L)
 
-    omega = 64
     B_FRI = ZZ(ceil(16 * omega/pi * log(2) * p * log(p)))
     e0 = ceil(log(B_FRI / N, l))
     e1 = e - e0
@@ -251,7 +249,7 @@ def IdealNormReduce(I1, I2):
     assert beta2 in I2
     return EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2), beta1, beta2, newN
 
-def GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, l, e, norm_bound):
+def DeltaKLPT_plus(Icom, IskIchl, l, e, omega):
     assert Icom.left_order() == IskIchl.left_order()
     _, qi, qj, qk = Icom.quaternion_algebra().basis()
     O = Icom.left_order()
@@ -259,12 +257,11 @@ def GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, l, e, norm_bound):
     le = l**e
 
     # bound for the original KLPT
-    omega = 128
     B_KLPT = 96 * (log(2)/pi * omega * p * log(p))**3
     e_KLPT = ceil(log(B_KLPT, 2))
 
-    J1, _, found1 = KLPT(Icom, 2, e_KLPT)
-    J2, _, found2 = KLPT(IskIchl, 2, e_KLPT)
+    J1, _, found1 = KLPT(Icom, 2, e_KLPT, omega)
+    J2, _, found2 = KLPT(IskIchl, 2, e_KLPT, omega)
     assert found1 and found2
     assert norm(J1) == norm(J2) == 2**e_KLPT
     N = 2**e_KLPT
@@ -280,7 +277,7 @@ def GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, l, e, norm_bound):
         J2 = EquivalentIdeal(J2, N*alpha.conjugate())
         N = N * ZZ(alpha.reduced_norm())
 
-        while N > norm_bound:
+        while N > p:
             J1, J2, _, beta2, newN = IdealNormReduce(J1, J2)
             N = newN
 
