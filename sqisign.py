@@ -19,27 +19,20 @@ import util
 import utilities.discrete_log
 
 class SQIsign:
-    def __init__(self, sec_level):
-
-        # NIST security level 1 parameters (lam = 128)
-        if sec_level == 1:
-            # use Sage Integers (ZZ) so downstream exact arithmetic (e.g. the
-            # pairing exponent in special_curve) is not turned into Python floats
-            self.sec_lambda = ZZ(128)
-            self.e = ZZ(248)
-            self.f = ZZ(5)
-            p = 2**self.e * self.f - 1
-            assert is_prime(p)
-            self.p = p
-            self.E0withEnd = special_curve.SpecialSuperSingularCurve(p, self.e, self.f)
-            Dmix = p**2 + 2
-            while not is_prime(Dmix):
-                Dmix += 2
-            self.Dmix = Dmix    # the degree of phi_sk and phi_com, which satisfies the mixing property in the supersingular isogeny graph
-            self.e_chl = self.sec_lambda
-            self.e_rsp = self._response_length(p, self.sec_lambda)
-        else:
-            raise ValueError("Unsupported security level")
+    def __init__(self, e, f, lam):
+        self.sec_lambda = ZZ(lam)
+        self.e = ZZ(e)
+        self.f = ZZ(f)
+        p = 2**self.e * self.f - 1
+        assert is_prime(p)
+        self.p = p
+        self.E0withEnd = special_curve.SpecialSuperSingularCurve(p, self.e, self.f)
+        Dmix = p**2 + 2
+        while not is_prime(Dmix):
+            Dmix += 2
+        self.Dmix = Dmix    # the degree of phi_sk and phi_com, which satisfies the mixing property in the supersingular isogeny graph
+        self.e_chl = self.sec_lambda
+        self.e_rsp = self._response_length(p, self.sec_lambda)
 
     def Keygen(self):
         Isk, _ = quaternion.RandomFixedNormIdeal(self.E0withEnd.order, self.Dmix)

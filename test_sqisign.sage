@@ -1,9 +1,9 @@
 from sqisign import SQIsign
 
-SQIsign_instance = SQIsign(1)
+SQIsign_instance = SQIsign(324, 3, 128)
 E0withEnd = SQIsign_instance.E0withEnd
 
-for _ in range(100):
+for _ in range(10):
     sk, pk = SQIsign_instance.Keygen()
     print("Key generation successful")
     

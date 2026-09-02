@@ -1,11 +1,6 @@
 from ring_sqisign import RingSQIsign
 
-e = 248
-f = 5
-p = 2^e * f - 1  
-lam = 128
-
-SQIsign_instance = RingSQIsign(1, 5)
+SQIsign_instance = RingSQIsign(324, 3, 128, 5)
 
 for _ in range(10):
     Pk, Sk = SQIsign_instance.Keygen()
