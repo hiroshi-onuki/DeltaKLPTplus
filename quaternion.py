@@ -116,8 +116,8 @@ def FullRepresentIntegerDeterministic(O0, n, seed):
     B = floor(sqrt(4*n/p))
     for z in range(B+1):
         for t in range(B+1):
-            z = z + seed % (B+1)
-            t = t + seed % (B+1)
+            z = (z + seed) % (B+1)
+            t = (t + seed) % (B+1)
             x, y = SumOf2Squares(4*n - p * (z**2 + t**2))
             if x is None or y is None:
                 continue
@@ -126,7 +126,6 @@ def FullRepresentIntegerDeterministic(O0, n, seed):
                     gamma = O0([x, y, z, t]) / 2
                     assert gamma.reduced_norm() == n
                     return gamma
-
 
 # return C, D s.t. gamma * (C*qj + D*qk) in O0*alpha + O0*N
 def IdealModConstraint(O0, qj, qk, gamma, alpha, N):
@@ -292,10 +291,14 @@ def DeltaKLPT_plus(Icom, IskIchl, l, e, omega, count_iter=False):
         J2 = EquivalentIdeal(J2, N*alpha.conjugate())
         N = N * ZZ(alpha.reduced_norm())
 
+        max_iter = ceil(1/2 * log(log(N/p + 0.303, 2), 2) + 0.6) # the theoretical bound
+        iter = 0
         while N > p:
             J1, J2, _, beta2, newN = IdealNormReduce(J1, J2)
             N = newN
             iteration_count += 1
+            iter += 1
+        assert iter <= max_iter, "Exceeded max iterations: {} > {}".format(iter, max_iter)
 
         def is_cyclic(nu):
             if nu / 2 in O:
