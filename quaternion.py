@@ -295,7 +295,8 @@ def GeneralizedDeltaKLPT_heuristic(Icom, IskIchl, l, e, norm_bound):
         if is_pseudoprime(N):
             C, D = IdealModConstraint(O, qj, qk, SmallestGenerator(J2), SmallestGenerator(J1), N)
             if kronecker(l**e, N) == kronecker(p * (C**2 + D**2), N):
-                nu, found = FullStrongApproximation(O, N, C, D, le, 40000, condition=is_cyclic)
+                num_vec = ceil(2*log(2) * omega * (l**2 + l - 1)/(l**2 - 1) * log(le/N**2))
+                nu, found = FullStrongApproximation(O, N, C, D, le, num_vec, condition=is_cyclic)
                 assert found
                 if found:
                     beta2 = SmallestGenerator(J2)
