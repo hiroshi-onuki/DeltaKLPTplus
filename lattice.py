@@ -37,8 +37,15 @@ def ShortBasisDim2Euclidean(b0, b1):
 def EnumerateCloseVectorsDim2Euclidean(b0, b1, t, m, B):
     b0, b1 = vector(ZZ, b0), vector(ZZ, b1)
     t = vector(ZZ, t)
-    L = IntegerLattice([b0, b1])
-    close = L.approximate_closest_vector(t)
+    # Babai rounding with respect to the (reduced) input basis, solved by Cramer's rule.
+    # The enumeration below is exact within radius B around t whatever starting lattice
+    # vector is used, so no IntegerLattice / approximate_closest_vector is needed.
+    det = b0[0]*b1[1] - b0[1]*b1[0]
+    if det == 0:
+        raise ValueError("EnumerateCloseVectorsEuclidean: degenerate lattice basis")
+    x = ((t[0]*b1[1] - t[1]*b1[0]) / det).round()
+    y = ((b0[0]*t[1] - b0[1]*t[0]) / det).round()
+    close = x*b0 + y*b1
     m = int(m)
     B = int(B)
     if m <= 0:
