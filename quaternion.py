@@ -14,7 +14,8 @@ from sage.all import ( # type: ignore
     matrix,
     IntegralLattice,
     log,
-    set_random_seed,
+    RR,
+    QQ,
 )
 from sage.rings.factorint import factor_trial_division # type: ignore
 from util import deterministic_sqrt_mod
@@ -230,37 +231,74 @@ def RandomFixedNormIdeal(O0, N):
     assert norm(I) == N
     return I, gamma*alpha
 
-def IdealNormReduce(I1, I2):
+# ---- helpers for IdealNormReduce (pure basis-matrix arithmetic, no FreeModule/IntegralLattice objects) ----
+_INR_CONST = RR(2*sqrt(2)/pi)
+_order_cache = {}
+
+# cached per-order data: (algebra, Gram matrix of the trace form on O0's basis, basis matrix, its inverse, basis, p)
+def _order_data(O0):
+    key = (O0.quaternion_algebra(), tuple(O0.basis()))
+    d = _order_cache.get(key)
+    if d is None:
+        Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace() for b1 in O0.basis() for b2 in O0.basis()])
+        Q = O0.basis_matrix()
+        d = (O0.quaternion_algebra(), Gram, Q, Q.inverse(), O0.basis(), ZZ(O0.discriminant()))
+        _order_cache[key] = d
+    return d
+
+# intersection of two full-rank lattices given by 4x4 rational basis matrices (rows): A ∩ B = (A* + B*)*
+def _lattice_intersection(A, B):
+    Sz, d = A.inverse().transpose().stack(B.inverse().transpose())._clear_denom()
+    H = Sz._hnf_pari(0, include_zero_rows=False)
+    return (H / d).inverse().transpose()
+
+# row HNF of a rational generating set (same basis as A.ideal(gens).basis_matrix())
+def _hnf(V):
+    Hz, d = V._clear_denom()
+    H = Hz._hnf_pari(0, include_zero_rows=False)
+    return H if d == 1 else H / d
+
+# first vector of the LLL-reduced basis of the lattice with integer basis M (rows, O0-coordinates)
+# w.r.t. the reduced norm; identical to IntegralLattice(Gram, M.rows()).LLL().basis()[0]
+def _lll_shortest(M, Gram, basis):
+    G = M * Gram * M.T
+    U = G.LLL_gram().T
+    v = (U * M)[0]
+    return sum(c * b for c, b in zip(v, basis))
+
+def IdealNormReduce(I1, I2, check=True):
     N = norm(I1)
     assert norm(I2) == N
     O0 = I1.left_order()
-    p = O0.discriminant()
-    Gram = matrix(ZZ, 4, 4, [(b1*b2.conjugate()).reduced_trace() for b1 in O0.basis() for b2 in O0.basis()])
-    Q = O0.basis_matrix()
-    Qinv = Q.inverse()
+    A, Gram, Q, Qinv, basis, p = _order_data(O0)
+    B1 = I1.basis_matrix()
+    B2 = I2.basis_matrix()
 
-    # L = {x in O0 | I_2 x subseteq I_1}
-    L = (O0*N).intersection(I2.conjugate() * I1)
-    L = IntegralLattice(Gram, [vector(b) * Qinv for b in L.basis()])
-    x = L.LLL().basis()[0]
-    x = sum(c * b for c, b in zip(x, O0.basis()))
-    x = x / N
+    # L = {x in O0 | I_2 x subseteq I_1}  (= (N*O0 ∩ conj(I2)*I1) / N)
+    J = _hnf(matrix(QQ, [list(bc.conjugate() * b) for bc in I2.basis() for b in I1.basis()]))   # conj(I2)*I1
+    L = _lattice_intersection(N * Q, J)
+    M = (_hnf(L) * Qinv / N).change_ring(ZZ)          # LLL is scale invariant: reduce L/N instead of L
+    x = _lll_shortest(M, Gram, basis)
     Nx = x.reduced_norm()
-    assert Nx < 2*sqrt(2)/pi * sqrt(p * N)
+    assert RR(Nx) < _INR_CONST * RR(p * N).sqrt()
     assert Nx % p != 0, "Nx mod p = {}".format(Nx % p)
 
     # L = Nx * (I1 \cap x^{-1} * I2 * x)
-    L = (I1 * Nx).intersection(x.conjugate() * I2 * x)
-    L = IntegralLattice(Gram, [vector(b) * Qinv for b in L.basis()])
-    beta1 = L.LLL().basis()[0]
-    beta1 = sum(c * b for c, b in zip(beta1, O0.basis())) / Nx
+    xc = x.conjugate()
+    L = _lattice_intersection(Nx * B1, matrix(QQ, [list(xc * b * x) for b in I2.basis()]))
+    M = (_hnf(L) * Qinv / Nx).change_ring(ZZ)
+    beta1 = _lll_shortest(M, Gram, basis)
     newN = ZZ(beta1.reduced_norm() / N)
-    assert newN < 2*sqrt(2)/pi * N * sqrt(p * Nx)
+    assert RR(newN) < _INR_CONST * RR(N) * RR(p * Nx).sqrt()
     assert newN % p != 0
-    beta2 = x * beta1 * x.conjugate() / Nx
-    assert beta1 in I1
-    assert beta2 in I2
-    return EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2), beta1, beta2, newN
+    beta2 = x * beta1 * xc / Nx
+    if check:
+        assert beta1 in I1
+        assert beta2 in I2
+    # EquivalentIdeal(I1, beta1), EquivalentIdeal(I2, beta2) with the left order cached
+    J1 = A.ideal(list(_hnf(B1 * beta1.conjugate().matrix() / N)), left_order=O0, check=False)
+    J2 = A.ideal(list(_hnf(B2 * beta2.conjugate().matrix() / N)), left_order=O0, check=False)
+    return J1, J2, beta1, beta2, newN
 
 def DeltaKLPT_plus(Icom, IskIchl, l, e, omega, count_iter=False):
     assert Icom.left_order() == IskIchl.left_order()
@@ -291,7 +329,7 @@ def DeltaKLPT_plus(Icom, IskIchl, l, e, omega, count_iter=False):
         J2 = EquivalentIdeal(J2, N*alpha.conjugate())
         N = N * ZZ(alpha.reduced_norm())
 
-        max_iter = ceil(1/2 * log(log(N/p + 0.303, 2), 2) + 0.6) # the theoretical bound
+        max_iter = ceil(1/2 * log(log(RR(N/p) + 0.303, 2), 2) + 0.6) # the theoretical bound
         iter = 0
         while N > p:
             J1, J2, _, beta2, newN = IdealNormReduce(J1, J2)

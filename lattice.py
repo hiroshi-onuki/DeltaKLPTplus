@@ -32,60 +32,68 @@ def ShortBasisDim2Euclidean(b0, b1):
         beta0 = gamma
     return beta1, beta0
 
+# generator: yields lattice vectors v = close + x*b0 + y*b1 with ||t - v||^2 <= B, in the same order as
+# before, but lazily and with plain Python integers (the caller usually stops after a few vectors).
 def EnumerateCloseVectorsDim2Euclidean(b0, b1, t, m, B):
     b0, b1 = vector(ZZ, b0), vector(ZZ, b1)
     t = vector(ZZ, t)
     L = IntegerLattice([b0, b1])
     close = L.approximate_closest_vector(t)
-    m = ZZ(m)
-    B = ZZ(B)
+    m = int(m)
+    B = int(B)
     if m <= 0:
         return
 
     d = t - close
-    a = EuclideanNorm(b0)
-    h = b0.dot_product(b1)
-    c = EuclideanNorm(b1)
-    delta = a*c - h**2
+    b00, b01 = int(b0[0]), int(b0[1])
+    b10, b11 = int(b1[0]), int(b1[1])
+    d0, d1 = int(d[0]), int(d[1])
+    c0, c1 = int(close[0]), int(close[1])
+    t0, t1 = int(t[0]), int(t[1])
+    a = b00*b00 + b01*b01
+    h = b00*b10 + b01*b11
+    c = b10*b10 + b11*b11
+    delta = a*c - h*h
     if delta <= 0:
         raise ValueError("EnumerateCloseVectorsEuclidean: degenerate lattice basis")
 
-    det = ZZ(b0[0])*ZZ(b1[1]) - ZZ(b0[1])*ZZ(b1[0])
-    y_num = ZZ(b0[0])*ZZ(d[1]) - ZZ(b0[1])*ZZ(d[0])
+    det = b00*b11 - b01*b10
+    y_num = b00*d1 - b01*d0
     y_den = det
     if y_den < 0:
         y_num = -y_num
         y_den = -y_den
 
     # From min_x ||d - x*b0 - y*b1||^2 = delta/a * (y-y0)^2.
-    y_radius = floor(sqrt((a*B) // delta)) + 2
-    y_min = ZZ(floor(y_num / y_den)) - y_radius
-    y_max = ZZ(ceil(y_num / y_den)) + y_radius
+    y_radius = int(ZZ((a*B) // delta).isqrt()) + 2
+    y_min = y_num // y_den - y_radius                  # floor(y_num/y_den) - y_radius
+    y_max = -((-y_num) // y_den) + y_radius            # ceil(y_num/y_den) + y_radius
 
-    tries = ZZ(0)
-    db0 = d.dot_product(b0)
-    db1 = d.dot_product(b1)
-    nd = EuclideanNorm(d)
-    ret = []
+    tries = 0
+    db0 = d0*b00 + d1*b01
+    db1 = d0*b10 + d1*b11
+    nd = d0*d0 + d1*d1
     for y in range(y_min, y_max + 1):
         if tries >= m:
-            break
-        K = c*y**2 - 2*db1*y + nd - B
+            return
+        K = c*y*y - 2*db1*y + nd - B
         Lx = h*y - db0
-        D = Lx**2 - a*K
+        D = Lx*Lx - a*K
         if D < 0:
             continue
-        x_radius = floor(sqrt(D)) + 2
-        x_min = ZZ(floor((-Lx - x_radius) / a)) - 1
-        x_max = ZZ(ceil((-Lx + x_radius) / a)) + 1
+        x_radius = int(ZZ(D).isqrt()) + 2
+        x_min = (-Lx - x_radius) // a - 1              # floor((-Lx - x_radius)/a) - 1
+        x_max = -((Lx - x_radius) // a) + 1            # ceil((-Lx + x_radius)/a) + 1
         for x in range(x_min, x_max + 1):
             if tries >= m:
-                break
+                return
             tries += 1
-            v = close + x*b0 + y*b1
-            if EuclideanNorm(t - v) <= B:
-                ret.append(v)
-    return ret
+            v0 = c0 + x*b00 + y*b10
+            v1 = c1 + x*b01 + y*b11
+            e0 = t0 - v0
+            e1 = t1 - v1
+            if e0*e0 + e1*e1 <= B:
+                yield vector(ZZ, [v0, v1])
 
 
 # return coefficients q_i,j s.t.
