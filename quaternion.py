@@ -1,8 +1,5 @@
-from xml.etree.ElementTree import PI
-
 from sage.all import ( # type: ignore
     ZZ,
-    GF,
     pi,
     kronecker,
     ceil,
@@ -15,7 +12,6 @@ from sage.all import ( # type: ignore
     sum_of_k_squares,
     vector,
     matrix,
-    CRT,
     IntegralLattice,
     log,
     set_random_seed,
@@ -65,7 +61,7 @@ def SmallGenerator(I):
 def SmallestGenerator(I):
     basis = LLLBasis(I)
     a = basis[0]
-    assert gcd(a.reduced_norm(), norm(I)) == norm(I)
+    assert gcd(a.reduced_norm(), norm(I)**2) == norm(I)
     return a
 
 # return I*bar(beta)/norm(I)

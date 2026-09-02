@@ -252,10 +252,9 @@ class SQIsign:
             phi = E.isogeny(K, model='montgomery', algorithm='factored')
             E = phi.codomain()
             imP = phi(imP)
+        assert not imP.is_zero()
         rsp = rsp_c + rsp_isP
-        com, is_cyclic = self.RecoverCommitment(pk, chl, rsp)
-        assert is_cyclic
-        return com, rsp
+        return E, rsp
 
     @staticmethod
     def _response_length(p, omega):

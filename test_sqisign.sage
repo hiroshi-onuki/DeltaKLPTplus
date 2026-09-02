@@ -1,10 +1,4 @@
 from sqisign import SQIsign
-from quaternion import SmallGenerator
-
-e = 248
-f = 5
-p = 2^e * f - 1  
-lam = 128
 
 SQIsign_instance = SQIsign(1)
 E0withEnd = SQIsign_instance.E0withEnd
