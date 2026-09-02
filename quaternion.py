@@ -360,7 +360,7 @@ def DeltaKLPT_plus(Icom, IskIchl, l, e, omega, count_iter=False):
                         return J1.intersection(O*nu), nu, iteration_count
                     return J1.intersection(O*nu), nu
 
-def Qlapoti(I, e, max_tries=10000):
+def Qlapoti(I, e, max_tries=100000):
     _, qi, _, _ = I.quaternion_algebra().basis()
     assert qi**2 == -1
     O = I.left_order()

@@ -1,6 +1,6 @@
 from sqisign import SQIsign
 
-SQIsign_instance = SQIsign(324, 3, 128)
+SQIsign_instance = SQIsign(376, 65, 192)
 E0withEnd = SQIsign_instance.E0withEnd
 
 for _ in range(10):
