@@ -9,7 +9,6 @@ from sage.all import ( # type: ignore
     floor,
     gcd,
     is_pseudoprime,
-    random_prime,
     norm,
     randint,
     sqrt,
@@ -19,9 +18,11 @@ from sage.all import ( # type: ignore
     CRT,
     IntegralLattice,
     log,
-    RealField,
+    set_random_seed,
+    inverse_mod,
 )
 from sage.rings.factorint import factor_trial_division # type: ignore
+from util import deterministic_sqrt_mod
 import lattice
 
 # return x, y s.t. n = x^2 + y^2, or None, None if no such x, y exist
@@ -96,7 +97,9 @@ def SmallestEquivalentIdeal(I):
     return EquivalentIdeal(I, basis[0]), basis[0]
 
 # return gamma in O0 s.t. nrd(gamma) = n
-def FullRepresentInteger(O0, n):
+def FullRepresentInteger(O0, n, seed=None):
+    if seed is not None:
+        set_random_seed(seed)
     p = O0.discriminant()
     assert n > p, "RepresentInteger requires n > p"
 
@@ -135,7 +138,7 @@ def FullStrongApproximation(O0, N, C, D, nrd, max_cnt=1000, condition=lambda nu:
     p = O0.discriminant()
     Nrd_mu = p * (C**2 + D**2)
     assert kronecker(Nrd_mu, N) == kronecker(nrd, N)
-    lam = 2 * ZZ(sqrt(GF(N)(nrd)/GF(N)(Nrd_mu)))
+    lam = 2 * deterministic_sqrt_mod(nrd * inverse_mod(Nrd_mu, N), N)
     rhs = ZZ((4*nrd - lam**2 * Nrd_mu) / N)
     R = ZZ.quotient_ring(N)
 
@@ -180,10 +183,12 @@ def KLPT(I, l, e):
     num_vectors_SA = ceil(6*log(2) * omega * log(p))
 
     pCD = None
+    seed = 0
     while pCD is None or kronecker(l**e1, N) != kronecker(pCD, N):
-        gamma = FullRepresentInteger(L.left_order(), N * l**e0)
+        gamma = FullRepresentInteger(L.left_order(), N * l**e0, seed=seed)
         C, D = IdealModConstraint(L.left_order(), qj, qk, gamma, beta, N)
         pCD = p * (C**2 + D**2)
+        seed += 1
     nu, found = FullStrongApproximation(L.left_order(), N, C, D, l**e1, max_cnt=num_vectors_SA)
     assert found
     assert gamma * nu in L

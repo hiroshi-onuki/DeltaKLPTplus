@@ -1,6 +1,8 @@
 from sage.all import (
     matrix,
+    sqrt,
     ZZ,
+    GF
 )
 from utilities.discrete_log import BiDLP_power_two
 
@@ -77,3 +79,8 @@ def j_invariant_to_bytes(E):
     byte_len = (len(bin(p)) - 2 + 7) // 8
     j = E.j_invariant()
     return field_element_to_bytes(j, byte_len)
+
+def deterministic_sqrt_mod(a, n):
+    s = ZZ(sqrt(GF(n)(a)))
+    assert 0 <= s < n
+    return min(s, n - s)
