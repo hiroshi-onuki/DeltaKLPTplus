@@ -54,7 +54,7 @@ def LLLBasis(I):
     return [O(b/2) for b in L.LLL().basis()]
 
 # return a s.t. I = O*a + O*nrd(I)
-def SmallGenerator(I, basis=None):
+def SmallGenerator(I, bound=100, basis=None):
     # `basis` may be a precomputed LLLBasis(I); callers that sample many
     # generators of the same ideal (Qlapoti) pass it in to avoid recomputing LLL.
     if basis is None:
@@ -63,7 +63,7 @@ def SmallGenerator(I, basis=None):
     n = 0
     N = norm(I)
     while gcd(n, N**2) != N:
-        coeffs = [randint(-100, 100) for _ in range(len(basis))]
+        coeffs = [randint(-bound, bound) for _ in range(len(basis))]
         a = sum(c * b for c, b in zip(coeffs, basis))
         n = a.reduced_norm()
     return a
@@ -374,13 +374,15 @@ def Qlapoti(I, e, max_tries=10**7):
     assert qi**2 == -1
     O = I.left_order()
     N = 2**e
+    p = I.quaternion_algebra().discriminant()
+    B = ceil(log(p))
 
     I, beta0 = SmallestEquivalentIdeal(I)
     n = norm(I)
     basis = LLLBasis(I)  # fixed for all tries; SmallGenerator only takes random combinations
 
     for _ in range(max_tries):
-        alpha = SmallGenerator(I, basis)
+        alpha = SmallGenerator(I, B, basis)
         aa, ba, _, _ = alpha
         r = ZZ(alpha.reduced_norm()/n)
         if gcd(2*aa, n) > 1 and gcd(2*ba, n) > 1:
