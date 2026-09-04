@@ -275,7 +275,7 @@ def _lll_shortest(M, Gram, basis):
     v = (U * M)[0]
     return sum(c * b for c, b in zip(v, basis))
 
-def IdealNormReduce(I1, I2, check=True):
+def IdealNormReduce(I1, I2, check=False):
     N = norm(I1)
     assert norm(I2) == N
     O0 = I1.left_order()
