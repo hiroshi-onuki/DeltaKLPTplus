@@ -6,6 +6,25 @@ from sage.all import ( # type: ignore
 )
 from utilities.discrete_log import BiDLP_power_two
 
+
+class LCG:
+    """Local-state LCG for deterministic, non-cryptographic sampling."""
+
+    _MASK = (1 << 64) - 1
+
+    def __init__(self, seed):
+        self.state = int(seed) & self._MASK
+
+    def randint(self, lower, upper):
+        """Return an integer in the inclusive interval [lower, upper]."""
+        if lower > upper:
+            raise ValueError("lower must not be greater than upper")
+        self.state = (
+            6364136223846793005 * self.state + 1442695040888963407
+        ) & self._MASK
+        return lower + self.state % (upper - lower + 1)
+
+
 def fp2_order_key(z):
     """
     Sort key for the lexicographic ordering on F_{p^2} = F_p(i) of Eq. (3) of the

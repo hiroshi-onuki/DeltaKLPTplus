@@ -18,7 +18,7 @@ from sage.all import ( # type: ignore
     QQ,
 )
 from sage.rings.factorint import factor_trial_division # type: ignore
-from util import deterministic_sqrt_mod
+from util import LCG, deterministic_sqrt_mod
 import lattice
 
 # Trial-division bound used before the primality test of the remaining cofactor.
@@ -124,18 +124,18 @@ def FullRepresentIntegerDeterministic(O0, n, seed):
     assert n > p, "RepresentInteger requires n > p"
 
     B = floor(sqrt(4*n/p))
-    for z in range(B+1):
-        for t in range(B+1):
-            z = (z + seed) % (B+1)
-            t = (t + seed) % (B+1)
-            x, y = SumOf2Squares(4*n - p * (z**2 + t**2))
-            if x is None or y is None:
-                continue
-            if (x - t) % 2 == (y - z) % 2 == 0:
-                if gcd([(x-t)//2, (y-z)//2, z, t]) == 1:
-                    gamma = O0([x, y, z, t]) / 2
-                    assert gamma.reduced_norm() == n
-                    return gamma
+    rng = LCG(seed)
+    while True:
+        z = rng.randint(-B, B)
+        t = rng.randint(-B, B)
+        x, y = SumOf2Squares(4*n - p * (z**2 + t**2))
+        if x is None or y is None:
+            continue
+        if (x - t) % 2 == (y - z) % 2 == 0:
+            if gcd([(x-t)//2, (y-z)//2, z, t]) == 1:
+                gamma = O0([x, y, z, t]) / 2
+                assert gamma.reduced_norm() == n
+                return gamma
 
 # return C, D s.t. gamma * (C*qj + D*qk) in O0*alpha + O0*N
 def IdealModConstraint(O0, qj, qk, gamma, alpha, N):

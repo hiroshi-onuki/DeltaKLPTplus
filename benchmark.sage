@@ -72,7 +72,7 @@ def benchmark_ring(inst, num_trials):
     print(f"\r\033[2K", end="")
     return float(t_keygen / num_trials), float(t_sign / num_trials), float(t_verify / num_trials)
 
-num_trials = 100
+num_trials = 10
 num_parties = 3
 total_time = time.time()
 print(f"Running benchmarks with {num_trials} trials for each parameter set.\n")
