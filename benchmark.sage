@@ -20,6 +20,7 @@ def average_iterations(inst, num_trials):
         _, _, iterations = DeltaKLPT_plus(Icom, IskIchl, 2, inst.e_rsp, inst.sec_lambda, count_iter=True)
         total_iterations += iterations
         print(f"\r\033[2KCount iteration trial {i+1}/{num_trials} completed. Iterations: {iterations}\r", end="")
+    print(f"\r\033[2K", end="")
     return float(total_iterations / num_trials)
 
 def benchmark_base(inst, num_trials):
@@ -43,6 +44,7 @@ def benchmark_base(inst, num_trials):
         t_verify += time.time() - t0
 
         print(f"\r\033[2KBase signature trial {i+1}/{num_trials} completed.\r", end="")
+    print(f"\r\033[2K", end="")
     return float(t_keygen / num_trials), float(t_sign / num_trials), float(t_verify / num_trials)
 
 def benchmark_ring(inst, num_trials):
@@ -67,9 +69,10 @@ def benchmark_ring(inst, num_trials):
         t_verify += time.time() - t0
 
         print(f"\r\033[2KRing signature trial {i+1}/{num_trials} completed.\r", end="")
+    print(f"\r\033[2K", end="")
     return float(t_keygen / num_trials), float(t_sign / num_trials), float(t_verify / num_trials)
 
-num_trials = 10
+num_trials = 100
 num_parties = 3
 total_time = time.time()
 print(f"Running benchmarks with {num_trials} trials for each parameter set.\n")
@@ -79,9 +82,9 @@ for param in Parameters:
     ring_instance = RingSQIsign(e, f, lam, num_parties)
     print(f"Parameters: e={e}, f={f}, lam={lam}, e_rsp={base_instance.e_rsp}, num_parties={ring_instance.n_parties}")
     avg_iter = average_iterations(base_instance, num_trials)
-    avg_keygen_base, avg_sign_base, avg_verify_base = benchmark_base(base_instance, num_trials)
-    avg_keygen_ring, avg_sign_ring, avg_verify_ring = benchmark_ring(ring_instance, num_trials)
     print(f"Average iterations for DeltaKLPT_plus: {avg_iter:.2f}")
+    avg_keygen_base, avg_sign_base, avg_verify_base = benchmark_base(base_instance, num_trials)
     print(f"Base SQIsign - Avg Keygen: {avg_keygen_base:.6f}s, Avg Sign: {avg_sign_base:.6f}s, Avg Verify: {avg_verify_base:.6f}s")
+    avg_keygen_ring, avg_sign_ring, avg_verify_ring = benchmark_ring(ring_instance, num_trials)
     print(f"Ring SQIsign - Avg Keygen: {avg_keygen_ring:.6f}s, Avg Sign: {avg_sign_ring:.6f}s, Avg Verify: {avg_verify_ring:.6f}s\n")
 print(f"Total time for all benchmarks: {time.time() - total_time:.2f}s")
