@@ -1,8 +1,52 @@
+import argparse
+import sys
 import time
 from parameters import Parameters
 from sqisign import SQIsign
 from ring_sqisign import RingSQIsign
 from quaternion import RandomFixedNormIdeal, DeltaKLPT_plus
+
+TESTS = ("iterations", "base", "ring")
+
+
+def positive_integer(value):
+    value = int(value)
+    if value <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return value
+
+
+def parse_args(argv=None):
+    if argv is None:
+        argv = sys.argv[1:]
+    # Some Sage 10.8+ launchers require `--` and leave it in script arguments.
+    if argv and argv[0] == "--":
+        argv = argv[1:]
+
+    parser = argparse.ArgumentParser(description="Benchmark SQIsign and Ring SQIsign")
+    parser.add_argument(
+        "--num-trials", "--num_trials",
+        dest="num_trials",
+        type=positive_integer,
+        default=10,
+        help="number of trials for each parameter set (default: 10)",
+    )
+    parser.add_argument(
+        "--num-parties", "--num_parties",
+        dest="num_parties",
+        type=positive_integer,
+        default=3,
+        help="number of parties in the ring benchmark (default: 3)",
+    )
+    parser.add_argument(
+        "--tests",
+        nargs="+",
+        choices=TESTS,
+        default=TESTS,
+        help="benchmarks to run (default: all)",
+    )
+    return parser.parse_args(argv)
+
 
 def average_iterations(inst, num_trials):
     total_iterations = 0
@@ -72,19 +116,51 @@ def benchmark_ring(inst, num_trials):
     print(f"\r\033[2K", end="")
     return float(t_keygen / num_trials), float(t_sign / num_trials), float(t_verify / num_trials)
 
-num_trials = 10
-num_parties = 3
-total_time = time.time()
-print(f"Running benchmarks with {num_trials} trials for each parameter set.\n")
-for param in Parameters:
-    e, f, lam = param["e"], param["f"], param["lam"]
-    base_instance = SQIsign(e, f, lam)
-    ring_instance = RingSQIsign(e, f, lam, num_parties)
-    print(f"Parameters: e={e}, f={f}, lam={lam}, e_rsp={base_instance.e_rsp}, num_parties={ring_instance.n_parties}")
-    avg_iter = average_iterations(base_instance, num_trials)
-    print(f"Average iterations for DeltaKLPT_plus: {avg_iter:.2f}")
-    avg_keygen_base, avg_sign_base, avg_verify_base = benchmark_base(base_instance, num_trials)
-    print(f"Base SQIsign - Avg Keygen: {avg_keygen_base:.6f}s, Avg Sign: {avg_sign_base:.6f}s, Avg Verify: {avg_verify_base:.6f}s")
-    avg_keygen_ring, avg_sign_ring, avg_verify_ring = benchmark_ring(ring_instance, num_trials)
-    print(f"Ring SQIsign - Avg Keygen: {avg_keygen_ring:.6f}s, Avg Sign: {avg_sign_ring:.6f}s, Avg Verify: {avg_verify_ring:.6f}s\n")
-print(f"Total time for all benchmarks: {time.time() - total_time:.2f}s")
+def main(argv=None):
+    args = parse_args(argv)
+    selected_tests = set(args.tests)
+    tests = [test for test in TESTS if test in selected_tests]
+
+    total_time = time.time()
+    print(
+        f"Running benchmarks ({', '.join(tests)}) with {args.num_trials} "
+        "trials for each parameter set.\n"
+    )
+    for param in Parameters:
+        e, f, lam = param["e"], param["f"], param["lam"]
+        base_instance = None
+        ring_instance = None
+        if selected_tests.intersection(("iterations", "base")):
+            base_instance = SQIsign(e, f, lam)
+        if "ring" in selected_tests:
+            ring_instance = RingSQIsign(e, f, lam, args.num_parties)
+
+        instance = base_instance if base_instance is not None else ring_instance
+        parameter_text = f"Parameters: e={e}, f={f}, lam={lam}, e_rsp={instance.e_rsp}"
+        if ring_instance is not None:
+            parameter_text += f", num_parties={ring_instance.n_parties}"
+        print(parameter_text)
+
+        if "iterations" in selected_tests:
+            avg_iter = average_iterations(base_instance, args.num_trials)
+            print(f"Average iterations for DeltaKLPT_plus: {avg_iter:.2f}")
+        if "base" in selected_tests:
+            avg_keygen, avg_sign, avg_verify = benchmark_base(base_instance, args.num_trials)
+            print(
+                f"Base SQIsign - Avg Keygen: {avg_keygen:.6f}s, "
+                f"Avg Sign: {avg_sign:.6f}s, Avg Verify: {avg_verify:.6f}s"
+            )
+        if "ring" in selected_tests:
+            avg_keygen, avg_sign, avg_verify = benchmark_ring(ring_instance, args.num_trials)
+            print(
+                f"Ring SQIsign - Avg Keygen: {avg_keygen:.6f}s, "
+                f"Avg Sign: {avg_sign:.6f}s, Avg Verify: {avg_verify:.6f}s"
+            )
+        print()
+
+    print(f"Total time for selected benchmarks: {time.time() - total_time:.2f}s")
+
+
+# The modular Sage CLI may execute .sage files with __name__ == "sage.all".
+if __name__ in ("__main__", "sage.all"):
+    main()
