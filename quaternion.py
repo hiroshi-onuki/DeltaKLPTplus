@@ -331,7 +331,7 @@ def IdealNormReduce(I1, I2, check=False, search_prime=True):
         # nrd/N is an odd (pseudo)prime among all vectors with nrd/N <= p (c * Gred * c^T = 2 * nrd).
         for val, c in lattice.ShortVectorsGram(Gred, 2 * p * N):
             cand = ZZ(ZZ(val) / (2 * N))      # N may be a Rational (norm of a fractional ideal)
-            if cand % 2 == 0 or cand % p == 0 or not is_pseudoprime(cand):
+            if cand % 4 == 3 or cand % p == 0 or not is_pseudoprime(cand):
                 continue
             beta1 = sum(ci * b for ci, b in zip(vector(ZZ, c) * Mred, basis))
             assert beta1.reduced_norm() == cand * N

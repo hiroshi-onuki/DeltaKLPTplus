@@ -29,7 +29,7 @@ class SQIsign:
         self.p = p
         self.E0withEnd = special_curve.SpecialSuperSingularCurve(p, self.e, self.f)
         self.mont = montgomery.Fp2(p)   # gmpy2 arithmetic in F_{p^2} for the x-only isogeny chains
-        Dmix = p**2 + 2
+        Dmix = p * 2**(2*self.sec_lambda) + 1
         while not is_prime(Dmix):
             Dmix += 2
         self.Dmix = Dmix    # the degree of phi_sk and phi_com, which satisfies the mixing property in the supersingular isogeny graph
