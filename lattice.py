@@ -134,7 +134,12 @@ def _floor_sqrt_plus(s, U):
         k -= 1
 
 # enumerate vectors of the (already reduced) basis with norm < B
-def LatticeEnumeration(L, B, condition, num_vectors):
+# skip_rank=r > 0: stop as soon as the coordinates r..n-1 of the LLL basis are all zero, i.e. do not enumerate
+# the sublattice spanned by the first r reduced basis vectors (used by EquivalentPrimeIdeal for ideal classes
+# containing an ideal of small composite norm, where that sublattice is Z[i]*b0 and only contains composite norms).
+# Since the coordinates are enumerated from the last one and negative values first, returning there still yields
+# exactly one vector of every +-pair outside the skipped sublattice.
+def LatticeEnumeration(L, B, condition, num_vectors, skip_rank=0):
     red_basis = [vector(ZZ, b) for b in L.LLL().basis()]
     n = len(red_basis)
     G = [[ZZ(red_basis[a].inner_product(red_basis[b])) for b in range(n)] for a in range(n)]
@@ -164,6 +169,8 @@ def LatticeEnumeration(L, B, condition, num_vectors):
         if i > 0:
             S[i - 1] = S[i] - q[i, i] * (x[i] + U[i])**2
             i -= 1
+            if i == skip_rank - 1 and not any(x[skip_rank:]):
+                return ret
             U[i] = sum(q[i, j] * x[j] for j in range(i + 1, n))
             assert q[i, i] > 0
             s = S[i] / q[i, i]

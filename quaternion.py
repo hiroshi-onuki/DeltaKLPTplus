@@ -90,7 +90,18 @@ def EquivalentPrimeIdeal(I, omega, constraint=lambda N: True):
 
     B = ceil(2*sqrt(2)/pi * sqrt(p * omega * log(2) * log(p)/2)) * N
     L = IntegralLattice(Gram, [vector(b) * Qinv for b in I.basis()])
-    v = lattice.LatticeEnumeration(L, B, condition=lambda newN: is_pseudoprime(ZZ(newN/(2*N))) and constraint(ZZ(newN/(2*N))), num_vectors=1)[0]
+    cond = lambda newN: is_pseudoprime(ZZ(newN/(2*N))) and constraint(ZZ(newN/(2*N)))
+    vs = lattice.LatticeEnumeration(L, B, condition=cond, num_vectors=1)
+    k = 0
+    while not vs:
+        # The search radius B is chosen for a "random" ideal class (Gaussian heuristic). If the class of I
+        # contains an ideal of norm N1 < sqrt(p)/160 (probability ~ pi^2/(2*160^2) ~ 1/5000 for a random
+        # class), the lattice is degenerate: b1 = i*b0, every vector inside the ball is (a+bi)*b0 with
+        # N' = (a^2+b^2)*N1, and the next vectors have N' ~ p/(4*N1) > B/(2N). N1 composite then leaves no
+        # prime candidate at all. Enlarge the radius and skip the sublattice Z[i]*b0 = <b0, b1>.
+        k += 1
+        vs = lattice.LatticeEnumeration(L, B * 2**k, condition=cond, num_vectors=1, skip_rank=2)
+    v = vs[0]
     alpha = sum(c * b for c, b in zip(v, O.basis()))
     return EquivalentIdeal(I, alpha), alpha, ZZ(alpha.reduced_norm() // N)
 
