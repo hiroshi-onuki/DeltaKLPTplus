@@ -182,3 +182,44 @@ def LatticeEnumeration(L, B, condition, num_vectors):
                     return ret
         else:
             return ret
+
+
+# all nonzero integer vectors c, up to sign (the first nonzero coordinate is positive), with c*G*c^T <= B for a
+# positive definite integer Gram matrix G (Sage matrix or list of lists), as a list of (c*G*c^T, tuple(c)) sorted by
+# the quadratic form value. Fincke-Pohst enumeration on the decomposition of MakeQuatraticForm; meant for the
+# small radii used by IdealNormReduce (typically a few dozen vectors).
+def ShortVectorsGram(G, B):
+    n = len(G.rows()) if hasattr(G, "rows") else len(G)
+    Gi = [[ZZ(G[a][b]) if not hasattr(G, "rows") else ZZ(G[a, b]) for b in range(n)] for a in range(n)]
+    q = MakeQuatraticForm(list(range(n)), lambda a, b: Gi[a][b])
+    B = QQ(B)
+    out = []
+    x = [ZZ(0)] * n
+
+    def rec(i, S):
+        U = sum(q[i, j] * x[j] for j in range(i + 1, n))
+        s = S / q[i, i]
+        if s < 0:
+            return
+        hi = _floor_sqrt_plus(s, -U)
+        lo = -_floor_sqrt_plus(s, U)
+        for xi in range(lo, hi + 1):
+            x[i] = xi
+            if i == 0:
+                if any(x):
+                    out.append(tuple(x))
+            else:
+                rec(i - 1, S - q[i, i] * (xi + U)**2)
+        x[i] = 0
+
+    rec(n - 1, B)
+    res = []
+    for c in out:
+        first = next(v for v in c if v)
+        if first < 0:
+            continue
+        val = sum(c[a] * Gi[a][b] * c[b] for a in range(n) for b in range(n))
+        if val <= B:
+            res.append((val, c))
+    res.sort()
+    return res

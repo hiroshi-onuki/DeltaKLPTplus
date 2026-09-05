@@ -267,15 +267,31 @@ def _hnf(V):
     H = Hz._hnf_pari(0, include_zero_rows=False)
     return H if d == 1 else H / d
 
-# first vector of the LLL-reduced basis of the lattice with integer basis M (rows, O0-coordinates)
-# w.r.t. the reduced norm; identical to IntegralLattice(Gram, M.rows()).LLL().basis()[0]
-def _lll_shortest(M, Gram, basis):
+# LLL-reduced basis (rows, O0-coordinates) of the lattice with integer basis M w.r.t. the reduced norm,
+# together with its Gram matrix (entries tr(b_i * conj(b_j)) = 2 * <b_i, b_j>); the first row is identical to
+# IntegralLattice(Gram, M.rows()).LLL().basis()[0]
+def _lll_reduce(M, Gram):
     G = M * Gram * M.T
     U = G.LLL_gram().T
-    v = (U * M)[0]
-    return sum(c * b for c, b in zip(v, basis))
+    Mred = U * M
+    return Mred, Mred * Gram * Mred.T
 
-def IdealNormReduce(I1, I2, check=False):
+# first vector of the LLL-reduced basis, as a quaternion
+def _lll_shortest(M, Gram, basis):
+    Mred, _ = _lll_reduce(M, Gram)
+    return sum(c * b for c, b in zip(Mred[0], basis))
+
+def IdealNormReduce(I1, I2, check=False, search_prime=True):
+    """
+    One norm-reduction step on a pair of left O0-ideals of the same norm N: returns (J1, J2, beta1, beta2, newN)
+    with J1 = I1 * conj(beta1) / N, J2 = I2 * conj(beta2) / N of the same norm newN.
+
+    beta1 is normally the LLL-shortest vector of the second lattice. With search_prime, when the Minkowski
+    bound of that lattice already guarantees newN <= p (i.e. this is the last reduction step of
+    DeltaKLPT_plus, which then needs newN to be prime), all lattice vectors with nrd/N <= p are enumerated
+    and the shortest one with (pseudo)prime nrd/N is used instead; if there is none, the shortest vector is
+    used as before.
+    """
     N = norm(I1)
     assert norm(I2) == N
     O0 = I1.left_order()
@@ -296,8 +312,20 @@ def IdealNormReduce(I1, I2, check=False):
     xc = x.conjugate()
     L = _lattice_intersection(Nx * B1, matrix(QQ, [list(xc * b * x) for b in I2.basis()]))
     M = (_hnf(L) * Qinv / Nx).change_ring(ZZ)
-    beta1 = _lll_shortest(M, Gram, basis)
+    Mred, Gred = _lll_reduce(M, Gram)
+    beta1 = sum(c * b for c, b in zip(Mred[0], basis))
     newN = ZZ(beta1.reduced_norm() / N)
+    if search_prime and _INR_CONST * RR(p * Nx).sqrt() < p:
+        # Minkowski bound of this lattice is below p: last reduction step. Prefer the shortest vector whose
+        # nrd/N is an odd (pseudo)prime among all vectors with nrd/N <= p (c * Gred * c^T = 2 * nrd).
+        for val, c in lattice.ShortVectorsGram(Gred, 2 * p * N):
+            cand = ZZ(ZZ(val) / (2 * N))      # N may be a Rational (norm of a fractional ideal)
+            if cand % 2 == 0 or cand % p == 0 or not is_pseudoprime(cand):
+                continue
+            beta1 = sum(ci * b for ci, b in zip(vector(ZZ, c) * Mred, basis))
+            assert beta1.reduced_norm() == cand * N
+            newN = cand
+            break
     assert RR(newN) < _INR_CONST * RR(N) * RR(p * Nx).sqrt()
     assert newN % p != 0
     beta2 = x * beta1 * xc / Nx
