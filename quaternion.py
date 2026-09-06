@@ -71,7 +71,7 @@ def SmallGenerator(I, bound=100, basis=None):
 def SmallestGenerator(I):
     basis = LLLBasis(I)
     a = basis[0]
-    assert gcd(a.reduced_norm(), norm(I)**2) == norm(I)
+    assert gcd(a.reduced_norm(), norm(I)**2) == norm(I), "gcd(a, N**2) != N with a = {}, N = {}".format(a, norm(I))
     return a
 
 # return I*bar(beta)/norm(I)

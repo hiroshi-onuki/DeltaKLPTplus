@@ -28,7 +28,6 @@ class SQIsign:
         assert is_prime(p)
         self.p = p
         self.E0withEnd = special_curve.SpecialSuperSingularCurve(p, self.e, self.f)
-        self.mont = montgomery.Fp2(p)   # gmpy2 arithmetic in F_{p^2} for the x-only isogeny chains
         Dmix = p * 2**(2*self.sec_lambda) + 1
         while not is_prime(Dmix):
             Dmix += 2
@@ -165,48 +164,46 @@ class SQIsign:
         cyclicity witness 2^(e-1) Q, and montgomery.normalize_A plays the role of
         _normalize_curve. Sage curves are only built where the deterministic basis is computed.
         """
-        K = self.mont
         e = self.E0withEnd.e
         e0 = self.e_chl + self.e_rsp - 4*e
         c0without_chl, c1b, c1f, c2b, c2f, isP1b, isP1f, isP2b, isP2f = rsp
         c0 = c0without_chl * 2**self.e_chl + chl
         Epk = pk
         Epk.set_order((self.p + 1)**2, check=False)  # pk may come from outside this session
-        A = K.from_sage(Epk.a2())
+        A = Epk.a2()
         xP, xQ, xPQ = self._basis_x(Epk, e)
-        A24p, C24 = montgomery.A24_projective(K, A)
-        xK = montgomery.ladder3pt(K, c0, xP, xQ, xPQ, montgomery.A24_affine(K, A), nbits=e0)  # x(P + c0 Q)
-        xK = montgomery.xDBLe(K, xK, A24p, C24, e - e0)                                      # order 2^e0
-        imP = montgomery.xDBLe(K, (xQ, K.one), A24p, C24, e - 1)   # 2^(e-1) Q, for the cyclicity check
-        A, (imP,) = montgomery.isogeny_chain_2e(K, A, xK, e0, [imP])
+        A24p, C24 = montgomery.A24_projective(A)
+        xK = montgomery.ladder3pt(c0, xP, xQ, xPQ, montgomery.A24_affine(A), nbits=e0)  # x(P + c0 Q)
+        xK = montgomery.xDBLe(xK, A24p, C24, e - e0)                                      # order 2^e0
+        imP = montgomery.xDBLe((xQ, 1), A24p, C24, e - 1)   # 2^(e-1) Q, for the cyclicity check
+        A, (imP,) = montgomery.isogeny_chain_2e(A, xK, e0, [imP])
         for (c, isP) in [(c1b, isP1b), (c1f, isP1f), (c2b, isP2b), (c2f, isP2f)]:
-            Aprime, R, U2 = montgomery.normalize_A(K, A)
-            imP = montgomery.apply_isomorphism_x(K, imP, R, U2)
+            Aprime, R, U2 = montgomery.normalize_A(A)
+            imP = montgomery.apply_isomorphism_x(imP, R, U2)
             En = self._curve_from_A(Aprime)
             xP, xQ, xPQ = self._basis_x(En, e)
-            xK = self._kernel_x(c, isP, xP, xQ, xPQ, montgomery.A24_affine(K, Aprime), e)
-            A, (imP,) = montgomery.isogeny_chain_2e(K, Aprime, xK, e, [imP])
+            xK = self._kernel_x(c, isP, xP, xQ, xPQ, montgomery.A24_affine(Aprime), e)
+            A, (imP,) = montgomery.isogeny_chain_2e(Aprime, xK, e, [imP])
         E = self._curve_from_A(A)
-        return E, not K.is_zero(imP[1])
+        return E, imP[1] != 0
 
     def _curve_from_A(self, A):
-        """The Sage curve y^2 = x^3 + A x^2 + x from a montgomery.Fp2 pair, with its order set."""
+        """The Sage curve y^2 = x^3 + A x^2 + x with its order set."""
         F = self.E0withEnd.Fp2
-        E = EllipticCurve(F, [0, self.mont.to_sage(F, A), 0, 1, 0])
+        E = EllipticCurve(F, [0, A, 0, 1, 0])
         E.set_order((self.p + 1)**2, check=False)
         return E
 
     def _basis_x(self, E, e):
-        """x(P), x(Q), x(P - Q) of the deterministic basis of E[2^e], as montgomery.Fp2 pairs."""
+        """x(P), x(Q), x(P - Q) of the deterministic basis of E[2^e]."""
         P, Q = self._deterministic_torsion_basis(E, e)
-        K = self.mont
-        return K.from_sage(P[0]), K.from_sage(Q[0]), K.from_sage((P - Q)[0])
+        return P[0], Q[0], (P - Q)[0]
 
     def _kernel_x(self, c, isP, xP, xQ, xPQ, A24, e):
         """x(c*P + Q) if isP else x(P + c*Q), via the 3-point ladder (c < 2^e)."""
         if isP:
-            return montgomery.ladder3pt(self.mont, c, xQ, xP, xPQ, A24, nbits=e)
-        return montgomery.ladder3pt(self.mont, c, xP, xQ, xPQ, A24, nbits=e)
+            return montgomery.ladder3pt(c, xQ, xP, xPQ, A24, nbits=e)
+        return montgomery.ladder3pt(c, xP, xQ, xPQ, A24, nbits=e)
 
     def Hash(self, msg):
         h = hashlib.sha256(msg)
