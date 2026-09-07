@@ -1,7 +1,7 @@
-from importlib import util
-
 from quaternion import *
 from attack import *
+from ring_sqisign import RingSQIsign
+import util
 
 proof.all(False)
 
@@ -15,6 +15,48 @@ def success_num(IskIchlIrsp, Nsk, Nchl, Nrsp, N_bound, trials=100):
             success_signing += 1
         print(f"Trial {_+1}/{trials} completed.\r", end="")
     return success_simple, success_signing
+
+def ChallengeToIdeal(inst, sk, chl):
+    """
+    Return the left O0-ideal Ichl of norm 2^e_chl such that Isk ∩ Ichl corresponds to
+    phi_chl ∘ phi_sk (the same computation as the beginning of SQIsign.Respond).
+    """
+    Isk, Msk = sk
+    a, b = vector([1, chl]) * Msk.inverse()
+    return inst.E0withEnd.KernelToIdeal(a, b, inst.e_chl)
+
+def ResponseToIdeal(inst, sk, chl, rsp):
+    """
+    Return the left O0-ideal corresponding to phi_rsp ∘ phi_chl ∘ phi_sk, where phi_rsp ∘ phi_chl
+    is the chain of five 2-power isogenies encoded by (chl, rsp) (see SQIsign.RecoverCommitment).
+
+    The chain is walked on ideals instead of curves: at each step the current ideal J is replaced
+    by an equivalent odd-norm ideal Im, whose isogeny (IdealToIsogeny) lands on the same normalized
+    curve, so the kernel c*P + Q (or P + c*Q) given on the deterministic basis can be pulled back to
+    E0 and pushed through J by the same beta.
+    """
+    E0 = inst.E0withEnd
+    e = E0.e
+    e0 = inst.e_chl + inst.e_rsp - 4*e
+    Isk, Msk = sk
+    c0without_chl, c1b, c1f, c2b, c2f, isP1b, isP1f, isP2b, isP2f = rsp
+    c0 = c0without_chl * 2**inst.e_chl + chl
+
+    # first step: kernel 2^(e-e0) * (Ppk + c0*Qpk) on Epk, written on the E0-basis via Msk
+    a, b = vector([1, c0]) * Msk.inverse()
+    J = Isk.intersection(E0.KernelToIdeal(a, b, e0))
+
+    for c, isP in [(c1b, isP1b), (c1f, isP1f), (c2b, isP2b), (c2f, isP2f)]:
+        Im, beta, _ = EquivalentPrimeIdeal(J, inst.sec_lambda)     # Im = J * conj(beta) / norm(J)
+        Em, Pm, Qm = E0.IdealToIsogeny(Im)
+        Em, (Pm, Qm) = inst._normalize_curve(Em, (Pm, Qm))
+        Pmd, Qmd = inst._deterministic_torsion_basis(Em, e)
+        Mm = util.BiDLP_matrix_power_two(Pm, Qm, Pmd, Qmd, e)
+        v = vector([c, 1] if isP else [1, c]) * Mm.inverse()
+        IK = E0.KernelToIdeal(v[0], v[1], e)                       # kernel on E0 pulled back by Im
+        J = Im.intersection(IK) * (beta / norm(Im))                 # phi_K ∘ phi_J
+    return J
+
 
 def make_instance(e, f, lam, n_parties):
     message = b"Test message"
@@ -32,11 +74,19 @@ def make_instance(e, f, lam, n_parties):
     Chl.append(chl_first)
     chl = chl_first
     for i in range(n_parties):
-        com, _ = inst.super().RecoverCommitment(Pk[i], Chl[i], Rsp[i])
-        chl = inst.super().Hash(message + util.j_invariant_to_bytes(com) + mPk)
+        com, _ = inst.RecoverCommitment(Pk[i], Chl[i], Rsp[i])
+        chl = inst.Hash(message + util.j_invariant_to_bytes(com) + mPk)
         Com.append(com)
         if i < n_parties - 1:
             Chl.append(chl)
+
+    # convert (chl, rsp) of each party into the ideal of phi_rsp ∘ phi_chl ∘ phi_sk
+    Ideals = [ResponseToIdeal(inst, Sk[i], Chl[i], Rsp[i]) for i in range(n_parties)]
+    for I, com in zip(Ideals, Com):
+        assert norm(I) == inst.Dmix * 2**(inst.e_chl + inst.e_rsp)
+        Im, _, _ = EquivalentPrimeIdeal(I, lam)
+        assert inst.E0withEnd.IdealToIsogeny(Im)[0].j_invariant() == com.j_invariant()
+    return inst, Pk, Sk, Chl, Rsp, Com, Ideals
 
 
 def make_p(lam):
