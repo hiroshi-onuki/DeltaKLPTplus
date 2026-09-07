@@ -23,7 +23,7 @@ def ChallengeToIdeal(inst, sk, chl):
     """
     Isk, Msk = sk
     a, b = vector([1, chl]) * Msk.inverse()
-    return inst.E0withEnd.KernelToIdeal(a, b, inst.e_chl)
+    return Isk.intersection(inst.E0withEnd.KernelToIdeal(a, b, inst.e_chl))
 
 def ResponseToIdeal(inst, sk, chl, rsp):
     """
@@ -80,14 +80,14 @@ def make_instance(e, f, lam, n_parties):
         if i < n_parties - 1:
             Chl.append(chl)
 
-    # convert (chl, rsp) of each party into the ideal of phi_rsp ∘ phi_chl ∘ phi_sk
-    Ideals = [ResponseToIdeal(inst, Sk[i], Chl[i], Rsp[i]) for i in range(n_parties)]
-    for I, com in zip(Ideals, Com):
-        assert norm(I) == inst.Dmix * 2**(inst.e_chl + inst.e_rsp)
-        Im, _, _ = EquivalentPrimeIdeal(I, lam)
+    IskIchls = [ChallengeToIdeal(inst, Sk[i], Chl[i]) for i in range(n_parties)]
+    IskIchlIrsps = [ResponseToIdeal(inst, Sk[i], Chl[i], Rsp[i]) for i in range(n_parties)]
+    for IskIchl, IskIchlIrsp, com in zip(IskIchls, IskIchlIrsps, Com):
+        assert IskIchlIrsp.is_submodule(IskIchl)
+        assert norm(IskIchlIrsp) == inst.Dmix * 2**(inst.e_chl + inst.e_rsp)
+        Im, _, _ = EquivalentPrimeIdeal(IskIchlIrsp, lam)
         assert inst.E0withEnd.IdealToIsogeny(Im)[0].j_invariant() == com.j_invariant()
-    return inst, Pk, Sk, Chl, Rsp, Com, Ideals
-
+    return inst, Pk, Sk, IskIchl, IskIchlIrsp
 
 def make_p(lam):
     f = 1
