@@ -1,3 +1,5 @@
+from importlib import util
+
 from quaternion import *
 from attack import *
 
@@ -14,36 +16,28 @@ def success_num(IskIchlIrsp, Nsk, Nchl, Nrsp, N_bound, trials=100):
         print(f"Trial {_+1}/{trials} completed.\r", end="")
     return success_simple, success_signing
 
-def make_instance(p, lam):
-    assert p % 4 == 3
-    B.<qi, qj, qk> = QuaternionAlgebra(QQ, -1, -p)
-    O0 = B.quaternion_order([1, qi, (qi + qj)/2, (1 + qk)/2])
-    assert O0.is_maximal()
-    Nsk = random_prime(ceil(p**4))
-    Ncom = random_prime(ceil(p**4))
-    Nchl = 2**lam
-    exp_rsp = ZZ(ceil(log(p, 2)) * 4 + 10)
-    Nbound = 2**(ceil(log(p, 2)) + 5)
+def make_instance(e, f, lam, n_parties):
+    message = b"Test message"
+    p = 2**(2*lam) * f - 1
+    inst = RingSQIsign(e, f, lam, n_parties)
 
-    Isk, _ = RandomFixedNormIdeal(O0, Nsk)
-    Icom, _ = RandomFixedNormIdeal(O0, Ncom)
-    Ichl, _ = RandomFixedNormIdeal(O0, Nchl)
-    IskIchl = Isk.intersection(Ichl)
+    # generate keys and signature
+    Pk, Sk = inst.Keygen()
+    mPk = b''.join([util.j_invariant_to_bytes(pk) for pk in Pk])
+    chl_first, Rsp = inst.Sign(Pk, Sk[0], 0, message)
 
-    L, _ = deltaKLPTforSign(Icom, IskIchl, 2, exp_rsp, Nbound)
-    I = L + O0 * 2**exp_rsp
-    assert I.is_principal()
-    O = L.right_order()
-    Od = IskIchl.right_order()
-    beta = O.isomorphism_to(Od, conjugator=True)
-    Iall = IskIchl * beta.inverse() * L.conjugate() * beta
-    n = norm(Iall) / beta.reduced_norm()
-    beta *= ZZ(sqrt(n))     # scale beta so that norm(Iall) = norm(beta)
-    assert Iall == O0 * beta
-    assert beta/2 not in O0
-    IskIchlIrsp = Iall + O0 * Nsk * Nchl * 2**exp_rsp
-    assert not IskIchlIrsp * B(1/2) in O0
-    return O0, IskIchlIrsp, Nsk, Nchl, 2**exp_rsp, Nbound
+    # recover commitments and challenges
+    Chl = []
+    Com = []
+    Chl.append(chl_first)
+    chl = chl_first
+    for i in range(n_parties):
+        com, _ = inst.super().RecoverCommitment(Pk[i], Chl[i], Rsp[i])
+        chl = inst.super().Hash(message + util.j_invariant_to_bytes(com) + mPk)
+        Com.append(com)
+        if i < n_parties - 1:
+            Chl.append(chl)
+
 
 def make_p(lam):
     f = 1

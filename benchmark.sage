@@ -50,7 +50,7 @@ def parse_args(argv=None):
 
 def average_iterations(inst, num_trials):
     total_iterations = 0
-    for i in range(num_trials):        
+    for i in range(num_trials):
 
         # generate ideals
         Isk, _ = RandomFixedNormIdeal(inst.E0withEnd.order, inst.Dmix)
