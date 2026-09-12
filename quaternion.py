@@ -292,7 +292,7 @@ def _lll_shortest(M, Gram, basis):
     Mred, _ = _lll_reduce(M, Gram)
     return sum(c * b for c, b in zip(Mred[0], basis))
 
-def IdealNormReduce(I1, I2, check=False, search_prime=True):
+def IdealNormReduce(I1, I2, check=False, search_prime=True, prime1mod4=False):
     """
     One norm-reduction step on a pair of left O0-ideals of the same norm N: returns (J1, J2, beta1, beta2, newN)
     with J1 = I1 * conj(beta1) / N, J2 = I2 * conj(beta2) / N of the same norm newN.
@@ -331,7 +331,7 @@ def IdealNormReduce(I1, I2, check=False, search_prime=True):
         # nrd/N is an odd (pseudo)prime among all vectors with nrd/N <= p (c * Gred * c^T = 2 * nrd).
         for val, c in lattice.ShortVectorsGram(Gred, 2 * p * N):
             cand = ZZ(ZZ(val) / (2 * N))      # N may be a Rational (norm of a fractional ideal)
-            if cand % 4 == 3 or cand % p == 0 or not is_pseudoprime(cand):
+            if ((not prime1mod4) and cand % 4 == 3) or cand % p == 0 or not is_pseudoprime(cand):
                 continue
             beta1 = sum(ci * b for ci, b in zip(vector(ZZ, c) * Mred, basis))
             assert beta1.reduced_norm() == cand * N
@@ -348,7 +348,7 @@ def IdealNormReduce(I1, I2, check=False, search_prime=True):
     J2 = A.ideal(list(_hnf(B2 * beta2.conjugate().matrix() / N)), left_order=O0, check=False)
     return J1, J2, beta1, beta2, newN
 
-def DeltaKLPT_plus(Icom, IskIchl, l, e, omega, count_iter=False):
+def DeltaKLPT_plus(Icom, IskIchl, l, e, omega, initial_reduce=True, shortest_alpha=True, search_prime=True, prime1mod4=False, count_iter=False):
     assert Icom.left_order() == IskIchl.left_order()
     _, qi, qj, qk = Icom.quaternion_algebra().basis()
     O = Icom.left_order()
@@ -358,21 +358,32 @@ def DeltaKLPT_plus(Icom, IskIchl, l, e, omega, count_iter=False):
     # bound for the original KLPT
     B_KLPT = 96 * (log(2)/pi * omega * p * log(p))**3
     e_KLPT = ceil(log(B_KLPT, 2))
+    N0 = 2**e_KLPT
 
-    J1, _, found1 = KLPT(Icom, 2, e_KLPT, omega)
-    J2, _, found2 = KLPT(IskIchl, 2, e_KLPT, omega)
+    L1, _, found1 = KLPT(Icom, 2, e_KLPT, omega)
+    L2, _, found2 = KLPT(IskIchl, 2, e_KLPT, omega)
     assert found1 and found2
-    assert norm(J1) == norm(J2) == 2**e_KLPT
-    N = 2**e_KLPT
+    assert norm(L1) == norm(L2) == N0
 
     iteration_count = 0
+    if initial_reduce:
+        while N0 > p:
+            L1, L2, _, beta2, newN = IdealNormReduce(L1, L2, search_prime=False)
+            N0 = newN
+            iteration_count += 1
+
     while True:
+        J1, J2 = L1, L2
+        N = N0
         r = randint(0, p)
         if r == p:
             alpha = qi
         else:
-            v, _ = lattice.ShortBasisDim2Euclidean(vector(ZZ, [1, r]), vector(ZZ, [0, p]))
-            alpha = v[0] + v[1]*qi
+            if shortest_alpha:
+                v, _ = lattice.ShortBasisDim2Euclidean(vector(ZZ, [1, r]), vector(ZZ, [0, p]))
+                alpha = v[0] + v[1]*qi
+            else:
+                alpha = 1 + r*qi
         J1 = EquivalentIdeal(J1, N*alpha)
         J2 = EquivalentIdeal(J2, N*alpha.conjugate())
         N = N * ZZ(alpha.reduced_norm())
@@ -380,7 +391,7 @@ def DeltaKLPT_plus(Icom, IskIchl, l, e, omega, count_iter=False):
         max_iter = ceil(1/2 * log(log(RR(N/p) + 0.303, 2), 2) + 0.6) # the theoretical bound
         iter = 0
         while N > p:
-            J1, J2, _, beta2, newN = IdealNormReduce(J1, J2)
+            J1, J2, _, beta2, newN = IdealNormReduce(J1, J2, search_prime=search_prime, prime1mod4=prime1mod4)
             N = newN
             iteration_count += 1
             iter += 1
