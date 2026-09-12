@@ -4,9 +4,8 @@ import time
 from parameters import Parameters
 from sqisign import SQIsign
 from ring_sqisign import RingSQIsign
-from quaternion import RandomFixedNormIdeal, DeltaKLPT_plus
 
-TESTS = ("iterations", "base", "ring")
+TESTS = ("base", "ring")
 
 
 def positive_integer(value):
@@ -47,25 +46,6 @@ def parse_args(argv=None):
     )
     return parser.parse_args(argv)
 
-
-def average_iterations(inst, num_trials):
-    total_iterations = 0
-    for i in range(num_trials):
-
-        # generate ideals
-        Isk, _ = RandomFixedNormIdeal(inst.E0withEnd.order, inst.Dmix)
-        while True:
-            Ichl, _ = RandomFixedNormIdeal(inst.E0withEnd.order, 2**inst.sec_lambda)
-            if Ichl.is_primitive():
-                break
-        IskIchl = Isk.intersection(Ichl)
-        Icom, _ = RandomFixedNormIdeal(inst.E0withEnd.order, inst.Dmix)
-
-        _, _, iterations = DeltaKLPT_plus(Icom, IskIchl, 2, inst.e_rsp, inst.sec_lambda, count_iter=True)
-        total_iterations += iterations
-        print(f"\r\033[2KCount iteration trial {i+1}/{num_trials} completed. Iterations: {iterations}\r", end="")
-    print(f"\r\033[2K", end="")
-    return float(total_iterations / num_trials)
 
 def benchmark_base(inst, num_trials):
     t_keygen = 0
@@ -130,7 +110,7 @@ def main(argv=None):
         e, f, lam = param["e"], param["f"], param["lam"]
         base_instance = None
         ring_instance = None
-        if selected_tests.intersection(("iterations", "base")):
+        if "base" in selected_tests:
             base_instance = SQIsign(e, f, lam)
         if "ring" in selected_tests:
             ring_instance = RingSQIsign(e, f, lam, args.num_parties)
@@ -141,9 +121,6 @@ def main(argv=None):
             parameter_text += f", num_parties={ring_instance.n_parties}"
         print(parameter_text)
 
-        if "iterations" in selected_tests:
-            avg_iter = average_iterations(base_instance, args.num_trials)
-            print(f"Average iterations for DeltaKLPT_plus: {avg_iter:.2f}")
         if "base" in selected_tests:
             avg_keygen, avg_sign, avg_verify = benchmark_base(base_instance, args.num_trials)
             print(
