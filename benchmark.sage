@@ -128,11 +128,18 @@ def main(argv=None):
                 f"Avg Sign: {avg_sign:.6f}s, Avg Verify: {avg_verify:.6f}s"
             )
         if "ring" in selected_tests:
-            avg_keygen, avg_sign, avg_verify = benchmark_ring(ring_instance, args.num_trials)
+            avg_rkeygen, avg_rsign, avg_rverify = benchmark_ring(ring_instance, args.num_trials)
             print(
-                f"Ring SQIsign - Avg Keygen: {avg_keygen:.6f}s, "
-                f"Avg Sign: {avg_sign:.6f}s, Avg Verify: {avg_verify:.6f}s"
+                f"Ring SQIsign - Avg Keygen: {avg_rkeygen:.6f}s, "
+                f"Avg Sign: {avg_rsign:.6f}s, Avg Verify: {avg_rverify:.6f}s"
             )
+            if "base" in selected_tests:
+                print(
+                    f"Ring SQIsign - Avg Keygen / n : {avg_rkeygen / ring_instance.n_parties:.6f}s, "
+                    f"Avg Sign dummy : {(avg_rsign-avg_sign)/(ring_instance.n_parties-1):.6f}s, "
+                    f"Avg Sing real : {avg_sign:.6f}s, "
+                    f"Avg Verify / n : {avg_rverify / ring_instance.n_parties:.6f}s"
+                )
         print()
 
     print(f"Total time for selected benchmarks: {time.time() - total_time:.2f}s")
