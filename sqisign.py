@@ -280,7 +280,7 @@ class SQIsign:
 
     @staticmethod
     def _response_length(p, omega):
-        return ceil(log(25*log(2)/(6*pi) * omega * p**4 * log(p), 2))
+        return ceil(log(10*log(2)/pi * (omega + 2) * p**4 * log(p), 2))
 
     @staticmethod
     def _normalize_curve(E, points=()):
