@@ -20,7 +20,7 @@ No additional Python packages are required.
 | `parameters.py` | Parameter sets `{f, c, lam}`; `p = c * 2^f - 1` |
 | `quaternion.py`, `lattice.py` | Quaternion ideals, KLPT variants, lattice enumeration |
 | `special_curve.py`, `montgomery.py`, `util.py` | Curve `E0`, ideal-to-isogeny, x-only arithmetic |
-| `theta_structures/`, `theta_isogenies/`, `utilities/` | Dimension-2 theta isogeny machinery |
+| `theta_structures/`, `theta_isogenies/`, `utilities/` | Dimension-2 theta isogeny machinery, third-party code (see below) |
 
 ## Usage
 
@@ -79,3 +79,15 @@ parameter set, under four combinations of the options `initial_reduce`,
 ```sh
 sage count_iter_INR.sage --num-trials 20
 ```
+
+## Third-party code
+
+The directories `theta_structures/`, `theta_isogenies/` and `utilities/` are
+unmodified copies of the corresponding directories of `Theta-SageMath` in
+[ThetaIsogenies/two-isogenies](https://github.com/ThetaIsogenies/two-isogenies),
+the code accompanying the paper
+[An Algorithmic Approach to (2, 2)-isogenies in the Theta Model and Applications to Isogeny-based Cryptography](https://eprint.iacr.org/2023/1747)
+by Pierrick Dartois, Luciano Maino, Giacomo Pope and Damien Robert.
+That code is distributed under the MIT License
+(Copyright (c) 2023 Pierrick Dartois, Luciano Maino, Giacomo Pope and Damien Robert);
+a copy of the license is included as `LICENSE` in each of the three directories.
