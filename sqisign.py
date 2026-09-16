@@ -122,14 +122,23 @@ class SQIsign:
         Pmd, Qmd = self._deterministic_torsion_basis(Em, e)
         Mm = util.BiDLP_matrix_power_two(Pm, Qm, Pmd, Qmd, e)
 
-        # backward: evaluate the complementary point through the dual isogeny
+        # backward: push the basis point outside the kernel through the dual isogeny.
+        # The 2^e-isogeny runs on the Kummer line (montgomery.py); its kernel <cd*P + Q>
+        # or <P + cd*Q> comes from the 3-point ladder, and only the final image is lifted
+        # back to a Sage point, for the BiDLP. The sign of that lift does not matter:
+        # (a, b) and (-a, -b) give the same projective coordinate.
         vdual = self.E0withEnd.IdealToKernel(Imp2b, e) * Mm % 2**e
-        Kdual = vdual[0] * Pmd + vdual[1] * Qmd
-        evalP = Pmd if vdual[0] % 2 == 0 else Qmd
-        phi = Em.isogeny(Kdual, model='montgomery', algorithm='factored')
-        K = phi(evalP)
-        assert K.order() == 2**e
-        Emb, (K,) = self._normalize_curve(phi.codomain(), (K,))
+        cd, isPd = self._projective_coord(vdual[0], vdual[1], e)
+        A = Em.a2()
+        xP, xQ, xPQ = Pmd[0], Qmd[0], (Pmd - Qmd)[0]
+        xK = self._kernel_x(cd, isPd, xP, xQ, xPQ, montgomery.A24_affine(A), e)
+        xEval = (xP, 1) if isPd else (xQ, 1)
+        A, (imK,) = montgomery.isogeny_chain_2e(A, xK, e, [xEval])
+        assert montgomery.xDBLe(imK, *montgomery.A24_projective(A), e - 1)[1] != 0   # order 2^e
+        Aprime, R, U2 = montgomery.normalize_A(A)
+        imK = montgomery.apply_isomorphism_x(imK, R, U2)
+        Emb = self._curve_from_A(Aprime)
+        K = self._lift_x(Emb, imK)
         Pmb, Qmb = self._deterministic_torsion_basis(Emb, e)
         a, b = utilities.discrete_log.BiDLP_power_two(K, Pmb, Qmb, e, None)
         cb, isPb = self._projective_coord(a, b, e)
@@ -165,18 +174,9 @@ class SQIsign:
         _normalize_curve. Sage curves are only built where the deterministic basis is computed.
         """
         e = self.E0withEnd.e
-        e0 = self.e_chl + self.e_rsp - 4*e
         c0without_chl, c1b, c1f, c2b, c2f, isP1b, isP1f, isP2b, isP2f = rsp
         c0 = c0without_chl * 2**self.e_chl + chl
-        Epk = pk
-        Epk.set_order((self.p + 1)**2, check=False)  # pk may come from outside this session
-        A = Epk.a2()
-        xP, xQ, xPQ = self._basis_x(Epk, e)
-        A24p, C24 = montgomery.A24_projective(A)
-        xK = montgomery.ladder3pt(c0, xP, xQ, xPQ, montgomery.A24_affine(A), nbits=e0)  # x(P + c0 Q)
-        xK = montgomery.xDBLe(xK, A24p, C24, e - e0)                                      # order 2^e0
-        imP = montgomery.xDBLe((xQ, 1), A24p, C24, e - 1)   # 2^(e-1) Q, for the cyclicity check
-        A, (imP,) = montgomery.isogeny_chain_2e(A, xK, e0, [imP])
+        A, imP = self._first_isogeny_x(pk, c0)
         for (c, isP) in [(c1b, isP1b), (c1f, isP1f), (c2b, isP2b), (c2f, isP2f)]:
             Aprime, R, U2 = montgomery.normalize_A(A)
             imP = montgomery.apply_isomorphism_x(imP, R, U2)
@@ -186,6 +186,25 @@ class SQIsign:
             A, (imP,) = montgomery.isogeny_chain_2e(Aprime, xK, e, [imP])
         E = self._curve_from_A(A)
         return E, imP[1] != 0
+
+    def _first_isogeny_x(self, Epk, c0):
+        """
+        The first isogeny of the response: the 2^e0-isogeny from pk with kernel
+        <2^(e-e0) (P + c0*Q)>, (P, Q) the deterministic basis of pk[2^e], on the Kummer line.
+        Returns (A, imP): the Montgomery coefficient of the codomain (not normalized) and the
+        x-only image of 2^(e-1) Q, the witness used to test the cyclicity of the whole walk.
+        """
+        e = self.E0withEnd.e
+        e0 = self.e_chl + self.e_rsp - 4*e
+        Epk.set_order((self.p + 1)**2, check=False)  # pk may come from outside this session
+        A = Epk.a2()
+        xP, xQ, xPQ = self._basis_x(Epk, e)
+        A24p, C24 = montgomery.A24_projective(A)
+        xK = montgomery.ladder3pt(c0, xP, xQ, xPQ, montgomery.A24_affine(A), nbits=e0)  # x(P + c0 Q)
+        xK = montgomery.xDBLe(xK, A24p, C24, e - e0)                                      # order 2^e0
+        imP = montgomery.xDBLe((xQ, 1), A24p, C24, e - 1)   # 2^(e-1) Q
+        A, (imP,) = montgomery.isogeny_chain_2e(A, xK, e0, [imP])
+        return A, imP
 
     def _curve_from_A(self, A):
         """The Sage curve y^2 = x^3 + A x^2 + x with its order set."""
@@ -204,6 +223,19 @@ class SQIsign:
         if isP:
             return montgomery.ladder3pt(c, xQ, xP, xPQ, A24, nbits=e)
         return montgomery.ladder3pt(c, xP, xQ, xPQ, A24, nbits=e)
+
+    @staticmethod
+    def _lift_x(E, P):
+        """A Sage point of the Montgomery curve E with the x-coordinate of P = (X : Z), Z != 0."""
+        A = E.a2()
+        x = P[0] / P[1]
+        y = montgomery.deterministic_sqrt(x * (x * (x + A) + 1))
+        return E([x, y])
+
+    @staticmethod
+    def _x_equal(P, Q):
+        """Whether P = (X : Z) and Q = (X' : Z') are the same point of the Kummer line."""
+        return P[0] * Q[1] == P[1] * Q[0]
 
     def Hash(self, msg):
         h = hashlib.sha256(msg)
@@ -231,52 +263,50 @@ class SQIsign:
         return chl == chl_check and is_cyclic
          
     def Simulator(self, pk, chl):
+        """
+        Sample a response for (pk, chl) without the secret key. The walk is the one of
+        RecoverCommitment on the Kummer line (montgomery.py); the four 2^e-kernels are drawn at
+        random subject to the walk staying cyclic, which is decided by comparing the x-only image
+        of 2^(e-1) Q with the 2-torsion points 2^(e-1) P, 2^(e-1) Q of the deterministic basis.
+        """
         e = self.E0withEnd.e
         e0 = self.e_chl + self.e_rsp - 4*e
-        Epk = pk
-        Epk.set_order((self.p + 1)**2, check=False)  # pk may come from outside this session
-        Ppk, Qpk = self._deterministic_torsion_basis(Epk, self.E0withEnd.e)
-
         c0without_chl = randint(0, 2**(e0 - self.e_chl) - 1)
         c0 = c0without_chl * 2**self.e_chl + chl
-        K = 2**(e - e0) * (Ppk + c0 * Qpk)
-        phi = Epk.isogeny(K, model='montgomery', algorithm='factored')
-        E = phi.codomain()
-        imP = phi(2**(e - 1) * Qpk)  # for checking the cyclicity of the isogeny
-        
+        A, imP = self._first_isogeny_x(pk, c0)   # imP: image of 2^(e-1) Q, for the cyclicity check
+
         rsp_c = (c0without_chl,)
         rsp_isP = ()
         for _ in range(4):
-            E, (imP,) = self._normalize_curve(E, (imP,))
-            P, Q = self._deterministic_torsion_basis(E, e)
-            P2, Q2 = 2**(e - 1) * P, 2**(e - 1) * Q
+            Aprime, R, U2 = montgomery.normalize_A(A)
+            imP = montgomery.apply_isomorphism_x(imP, R, U2)
+            En = self._curve_from_A(Aprime)
+            xP, xQ, xPQ = self._basis_x(En, e)
+            A24p, C24 = montgomery.A24_projective(Aprime)
+            xP2 = montgomery.xDBLe((xP, 1), A24p, C24, e - 1)   # 2^(e-1) P
+            xQ2 = montgomery.xDBLe((xQ, 1), A24p, C24, e - 1)   # 2^(e-1) Q
             c = randint(0, 2**e - 1)
-            if imP == P2:
+            # imP has order 2, so it is P2, Q2 or P2 + Q2; choose the kernel not containing it
+            if self._x_equal(imP, xP2):
                 if c % 2 == 0:
-                    K = c * P + Q
-                    isP = True
+                    isP = True      # <c*P + Q>
                 else:
-                    K = P + c * Q
-                    isP = False
-            elif imP == Q2:
-                K = P + c * Q
+                    isP = False     # <P + c*Q>
+            elif self._x_equal(imP, xQ2):
                 isP = False
             else:   # imP == P2 + Q2
                 if c % 2 == 0:
-                    K = c * P + Q
                     isP = True
                 else:
                     c -= 1
-                    K = P + c * Q
                     isP = False
             rsp_c += (c,)
             rsp_isP += (isP,)
-            phi = E.isogeny(K, model='montgomery', algorithm='factored')
-            E = phi.codomain()
-            imP = phi(imP)
-        assert not imP.is_zero()
+            xK = self._kernel_x(c, isP, xP, xQ, xPQ, montgomery.A24_affine(Aprime), e)
+            A, (imP,) = montgomery.isogeny_chain_2e(Aprime, xK, e, [imP])
+        assert imP[1] != 0
         rsp = rsp_c + rsp_isP
-        return E, rsp
+        return self._curve_from_A(A), rsp
 
     @staticmethod
     def _response_length(p, omega):
