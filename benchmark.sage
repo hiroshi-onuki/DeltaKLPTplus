@@ -107,16 +107,16 @@ def main(argv=None):
         "trials for each parameter set.\n"
     )
     for param in Parameters:
-        e, f, lam = param["e"], param["f"], param["lam"]
+        f, c, lam = param["f"], param["c"], param["lam"]
         base_instance = None
         ring_instance = None
         if "base" in selected_tests:
-            base_instance = SQIsign(e, f, lam)
+            base_instance = SQIsign(f, c, lam)
         if "ring" in selected_tests:
-            ring_instance = RingSQIsign(e, f, lam, args.num_parties)
+            ring_instance = RingSQIsign(f, c, lam, args.num_parties)
 
         instance = base_instance if base_instance is not None else ring_instance
-        parameter_text = f"Parameters: e={e}, f={f}, lam={lam}, e_rsp={instance.e_rsp}"
+        parameter_text = f"Parameters: f={f}, c={c}, lam={lam}, e_rsp={instance.e_rsp}"
         if ring_instance is not None:
             parameter_text += f", num_parties={ring_instance.n_parties}"
         print(parameter_text)

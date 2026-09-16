@@ -4,9 +4,9 @@ from ring_sqisign import RingSQIsign
 n = 10
 
 for param in Parameters:
-    e, f, lam = param["e"], param["f"], param["lam"]
-    SQIsign_instance = RingSQIsign(e, f, lam, n_parties=3)
-    print(f"Parameters: e={e}, f={f}, lam={lam}, e_rsp={SQIsign_instance.e_rsp}")
+    f, c, lam = param["f"], param["c"], param["lam"]
+    SQIsign_instance = RingSQIsign(f, c, lam, n_parties=3)
+    print(f"Parameters: f={f}, c={c}, lam={lam}, e_rsp={SQIsign_instance.e_rsp}")
     for i in range(n):
         Pk, Sk = SQIsign_instance.Keygen()
         idx = randint(0, SQIsign_instance.n_parties - 1) # type: ignore

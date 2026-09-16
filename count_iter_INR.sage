@@ -53,9 +53,9 @@ def main(argv=None):
     args = parse_args(argv)
     total_time = time.time()
     for param in Parameters:
-        e, f, lam = param["e"], param["f"], param["lam"]
-        instance = SQIsign(e, f, lam)
-        print(f"Parameters: e={e}, f={f}, lam={lam}, e_rsp={instance.e_rsp}")
+        f, c, lam = param["f"], param["c"], param["lam"]
+        instance = SQIsign(f, c, lam)
+        print(f"Parameters: f={f}, c={c}, lam={lam}, e_rsp={instance.e_rsp}")
 
         for options in [
             [False, False, False, False],

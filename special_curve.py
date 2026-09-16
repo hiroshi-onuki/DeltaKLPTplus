@@ -18,13 +18,13 @@ from theta_isogenies.product_isogeny import EllipticProductIsogeny
 from quaternion import Qlapoti, SmallGenerator
 
 class SpecialSuperSingularCurve:
-    def __init__(self, p, e, f):
-        assert p == 2**e * f - 1
-        assert e >= 3
-        assert f % 2 == 1
+    def __init__(self, p, f, c):
+        assert p == 2**f * c - 1
+        assert f >= 3
+        assert c % 2 == 1
         self.p = p
-        self.e = e
         self.f = f
+        self.c = c
         Fpx = PolynomialRing(GF(p), 'x')
         x = Fpx.gen()
         self.Fp2 = GF(p**2, modulus=x**2 + 1, names='i')
@@ -43,21 +43,21 @@ class SpecialSuperSingularCurve:
         self.qk = qk
 
         """
-        For computing the actions of qi, (qi + qj)/2, (1 + qk)/2 on E[2^e],
-        we use a basis (Pext, Qext) of E[2^(e+1)] over GF(p^4)
+        For computing the actions of qi, (qi + qj)/2, (1 + qk)/2 on E[2^f],
+        we use a basis (Pext, Qext) of E[2^(f+1)] over GF(p^4)
         """
         tmp = self.Fp2.random_element()
         while is_square(tmp):
             tmp = self.Fp2.random_element()
         Fp2x = PolynomialRing(self.Fp2, 'x')
         x = Fp2x.gen()
-        f = tmp.minpoly()(x**2)
-        Fp4 = GF(p**4, modulus=f, names='j')
+        modulus4 = tmp.minpoly()(x**2)
+        Fp4 = GF(p**4, modulus=modulus4, names='j')
         Eext = EllipticCurve(Fp4, [1, 0])
         pi = Eext.frobenius_isogeny(1)
-        Pext, Qext = Eext.torsion_basis(2**(e+1))
+        Pext, Qext = Eext.torsion_basis(2**(f+1))
 
-        # (P, Q) is a basis of E[2^e] over GF(p^2)
+        # (P, Q) is a basis of E[2^f] over GF(p^2)
         emb = self.Fp2.embeddings(Fp4)[0]
         res = emb.section()
         def restrict_point(Pext):
@@ -67,7 +67,7 @@ class SpecialSuperSingularCurve:
         Q = restrict_point(2*Qext)
         self.P = P
         self.Q = Q
-        tPQ = tate_pairing_pari(P, Q, 2**e)**((p**2 - 1) // 2**e)
+        tPQ = tate_pairing_pari(P, Q, 2**f)**((p**2 - 1) // 2**f)
         self.tate_pairing_PQ = tPQ
         
         # The action of qi
@@ -76,7 +76,7 @@ class SpecialSuperSingularCurve:
             return E([-x, i*y])
         iP = qi_action(P)
         iQ = qi_action(Q)
-        self.matrix_qi = BiDLP_matrix_power_two(iP, iQ, P, Q, e)
+        self.matrix_qi = BiDLP_matrix_power_two(iP, iQ, P, Q, f)
 
         # The action of (qi + qj)/2
         def qi_action_ext(P):
@@ -84,12 +84,12 @@ class SpecialSuperSingularCurve:
             return Eext([-x, emb(i)*y])
         Pd = restrict_point(qi_action_ext(Pext) + pi(Pext))
         Qd = restrict_point(qi_action_ext(Qext) + pi(Qext))
-        self.matrix_qi_qj = BiDLP_matrix_power_two(Pd, Qd, P, Q, e)
+        self.matrix_qi_qj = BiDLP_matrix_power_two(Pd, Qd, P, Q, f)
 
         # The action of (1 + qk)/2
         Pd = restrict_point(Pext + qi_action_ext(pi(Pext)))
         Qd = restrict_point(Qext + qi_action_ext(pi(Qext)))
-        self.matrix_1_qk = BiDLP_matrix_power_two(Pd, Qd, P, Q, e)
+        self.matrix_1_qk = BiDLP_matrix_power_two(Pd, Qd, P, Q, f)
 
     def quaternion_action(self, alpha):
         a, b, c, d = vector(alpha) * self.order.basis_matrix().inverse()
@@ -103,7 +103,7 @@ class SpecialSuperSingularCurve:
         N = norm(I)
         assert I.left_order() == O
         assert N % 2 == 1
-        e = self.e
+        e = self.f
 
         """
         compute beta1, beta2, gamma s.t.
@@ -149,7 +149,7 @@ class SpecialSuperSingularCurve:
 
     def KernelToIdeal(self, a, b, exp):
         """
-        return a left O-ideal I s.t. E0[I] = <a*P' + b*Q'>, where (P', Q') = 2^(e-exp)*(P, Q)
+        return a left O-ideal I s.t. E0[I] = <a*P' + b*Q'>, where (P', Q') = 2^(f-exp)*(P, Q)
         find a, b s.t.
             a*R + b*(qj + (1 + qk)/2)(R) = i(R), wehre R = a*P + b*Q
         """
@@ -167,7 +167,7 @@ class SpecialSuperSingularCurve:
         """
         return c, is_one_P s.t.
             E0[I] = <P' + c*Q'> if is_one_P, otherwise E0[I] = <c*P' + Q'>,
-        where (P', Q') = 2^(e-exp)*(P, Q)
+        where (P', Q') = 2^(f-exp)*(P, Q)
         """
         assert norm(I) == 2**exp
         alpha = SmallGenerator(I)

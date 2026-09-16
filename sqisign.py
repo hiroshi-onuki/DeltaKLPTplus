@@ -20,14 +20,14 @@ import montgomery
 import utilities.discrete_log
 
 class SQIsign:
-    def __init__(self, e, f, lam):
+    def __init__(self, f, c, lam):
         self.sec_lambda = ZZ(lam)
-        self.e = ZZ(e)
         self.f = ZZ(f)
-        p = 2**self.e * self.f - 1
+        self.c = ZZ(c)
+        p = 2**self.f * self.c - 1
         assert is_prime(p)
         self.p = p
-        self.E0withEnd = special_curve.SpecialSuperSingularCurve(p, self.e, self.f)
+        self.E0withEnd = special_curve.SpecialSuperSingularCurve(p, self.f, self.c)
         Dmix = p * 2**(2*self.sec_lambda) + 1
         while not is_prime(Dmix):
             Dmix += 2
@@ -39,8 +39,8 @@ class SQIsign:
         Isk, _ = quaternion.RandomFixedNormIdeal(self.E0withEnd.order, self.Dmix)
         Epk, Psk, Qsk = self.E0withEnd.IdealToIsogeny(Isk)
         Epk, (Psk, Qsk) = self._normalize_curve(Epk, (Psk, Qsk))
-        Ppk, Qpk = self._deterministic_torsion_basis(Epk, self.E0withEnd.e)
-        Msk = util.BiDLP_matrix_power_two(Psk, Qsk, Ppk, Qpk, self.E0withEnd.e)
+        Ppk, Qpk = self._deterministic_torsion_basis(Epk, self.E0withEnd.f)
+        Msk = util.BiDLP_matrix_power_two(Psk, Qsk, Ppk, Qpk, self.E0withEnd.f)
         sk = (Isk, Msk)
         pk = Epk
         return sk, pk
@@ -56,7 +56,7 @@ class SQIsign:
         Isk, Msk = sk
         Icom = st
         O0 = self.E0withEnd.order
-        e = self.E0withEnd.e
+        e = self.E0withEnd.f
 
         # make the ideal corresponding to chl
         a, b = vector([1, chl]) * Msk.inverse()
@@ -173,7 +173,7 @@ class SQIsign:
         cyclicity witness 2^(e-1) Q, and montgomery.normalize_A plays the role of
         _normalize_curve. Sage curves are only built where the deterministic basis is computed.
         """
-        e = self.E0withEnd.e
+        e = self.E0withEnd.f
         c0without_chl, c1b, c1f, c2b, c2f, isP1b, isP1f, isP2b, isP2f = rsp
         c0 = c0without_chl * 2**self.e_chl + chl
         A, imP = self._first_isogeny_x(pk, c0)
@@ -194,7 +194,7 @@ class SQIsign:
         Returns (A, imP): the Montgomery coefficient of the codomain (not normalized) and the
         x-only image of 2^(e-1) Q, the witness used to test the cyclicity of the whole walk.
         """
-        e = self.E0withEnd.e
+        e = self.E0withEnd.f
         e0 = self.e_chl + self.e_rsp - 4*e
         Epk.set_order((self.p + 1)**2, check=False)  # pk may come from outside this session
         A = Epk.a2()
@@ -269,7 +269,7 @@ class SQIsign:
         random subject to the walk staying cyclic, which is decided by comparing the x-only image
         of 2^(e-1) Q with the 2-torsion points 2^(e-1) P, 2^(e-1) Q of the deterministic basis.
         """
-        e = self.E0withEnd.e
+        e = self.E0withEnd.f
         e0 = self.e_chl + self.e_rsp - 4*e
         c0without_chl = randint(0, 2**(e0 - self.e_chl) - 1)
         c0 = c0without_chl * 2**self.e_chl + chl

@@ -2,8 +2,8 @@ from sqisign import SQIsign
 import util
 
 class RingSQIsign(SQIsign):
-    def __init__(self, e, f, lam, n_parties):
-        super().__init__(e, f, lam)
+    def __init__(self, f, c, lam, n_parties):
+        super().__init__(f, c, lam)
         self.n_parties = n_parties
 
     def Keygen(self):

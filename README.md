@@ -15,9 +15,9 @@ No additional Python packages are required.
 
 | Path | Contents |
 |------|----------|
-| `sqisign.py` | `SQIsign(e, f, lam)` with `Keygen`, `Sign`, `Verify` |
-| `ring_sqisign.py` | `RingSQIsign(e, f, lam, n_parties)` with the same API |
-| `parameters.py` | Parameter sets `{e, f, lam}`; `p = 2^e * f - 1` |
+| `sqisign.py` | `SQIsign(f, c, lam)` with `Keygen`, `Sign`, `Verify` |
+| `ring_sqisign.py` | `RingSQIsign(f, c, lam, n_parties)` with the same API |
+| `parameters.py` | Parameter sets `{f, c, lam}`; `p = c * 2^f - 1` |
 | `quaternion.py`, `lattice.py` | Quaternion ideals, KLPT variants, lattice enumeration |
 | `special_curve.py`, `montgomery.py`, `util.py` | Curve `E0`, ideal-to-isogeny, x-only arithmetic |
 | `theta_structures/`, `theta_isogenies/`, `utilities/` | Dimension-2 theta isogeny machinery |

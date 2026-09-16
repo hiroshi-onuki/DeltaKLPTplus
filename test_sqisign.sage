@@ -4,9 +4,9 @@ from sqisign import SQIsign
 n = 10
 
 for param in Parameters:
-    e, f, lam = param["e"], param["f"], param["lam"]
-    SQIsign_instance = SQIsign(e, f, lam)
-    print(f"Parameters: e={e}, f={f}, lam={lam}, e_rsp={SQIsign_instance.e_rsp}")
+    f, c, lam = param["f"], param["c"], param["lam"]
+    SQIsign_instance = SQIsign(f, c, lam)
+    print(f"Parameters: f={f}, c={c}, lam={lam}, e_rsp={SQIsign_instance.e_rsp}")
     for i in range(n):
         sk, pk = SQIsign_instance.Keygen()
         sign = SQIsign_instance.Sign(sk, pk, b"Test message")
