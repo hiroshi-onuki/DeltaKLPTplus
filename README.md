@@ -1,13 +1,18 @@
-# newKLPT — SQIsign and Ring SQIsign in SageMath
+# SageMath implementation of Δ-KLPT⁺ and Delfar
 
-A SageMath implementation of the SQIsign signature scheme and a ring-signature
-variant built on it. The quaternion side uses a variant of KLPT
-(`DeltaKLPT_plus`) that fixes the norm of the response ideal; the isogeny side
-uses x-only Montgomery arithmetic and 2-dimensional theta isogenies.
+A SageMath implementation of a new KLPT-type algorithm Δ-KLPT⁺ and of Delfar,
+a fully anonymous ring signature scheme based on it. It contains the three
+components implemented for the paper:
+
+- Δ-SigningKLPT⁺, the variant of Δ-KLPT⁺ used for signing, together with its
+  subroutine `IdealNormReduce`;
+- SQIsign based on Δ-SigningKLPT⁺;
+- the ring signature scheme Delfar.
 
 ## Requirements
 
-- SageMath 10.x (`sage` on your `PATH`)
+- SageMath 10.x (`sage` on your `PATH`). The timings in the paper were measured
+  with SageMath 10.9.
 
 No additional Python packages are required.
 
@@ -15,22 +20,22 @@ No additional Python packages are required.
 
 | Path | Contents |
 |------|----------|
-| `sqisign.py` | `SQIsign(f, c, lam)` with `Keygen`, `Sign`, `Verify` |
-| `ring_sqisign.py` | `RingSQIsign(f, c, lam, n_parties)` with the same API |
+| `sqisign.py` | `SQIsign(f, c, lam)`: SQIsign based on Δ-SigningKLPT⁺, with `Keygen`, `Sign`, `Verify` |
+| `ring_sqisign.py` | `RingSQIsign(f, c, lam, n_parties)`: the ring signature scheme Delfar, with `Keygen`, `Sign`, `Verify` for a ring of `n_parties` public keys |
 | `parameters.py` | Parameter sets `{f, c, lam}`; `p = c * 2^f - 1` |
-| `quaternion.py`, `lattice.py` | Quaternion ideals, KLPT variants, lattice enumeration |
+| `quaternion.py`, `lattice.py` | Quaternion ideals, `IdealNormReduce`, Δ-SigningKLPT⁺ (`DeltaKLPT_plus`), lattice enumeration |
 | `special_curve.py`, `montgomery.py`, `util.py` | Curve `E0`, ideal-to-isogeny, x-only arithmetic |
 | `theta_structures/`, `theta_isogenies/`, `utilities/` | Dimension-2 theta isogeny machinery, third-party code (see below) |
 
 ## Usage
 
 All entry points are `.sage` scripts. Run each with `sage <script>.sage` from
-the repository root, so that the `.py` modules are importable.
+this directory, so that the `.py` modules are importable.
 
 ### `test_sqisign.sage`
 
-Runs Keygen / Sign / Verify 10 times for every parameter set in
-`parameters.py` and asserts that all signatures verify.
+Runs Keygen / Sign / Verify of SQIsign based on Δ-SigningKLPT⁺ 10 times for
+every parameter set in `parameters.py` and asserts that all signatures verify.
 
 ```sh
 sage test_sqisign.sage
@@ -38,7 +43,7 @@ sage test_sqisign.sage
 
 ### `test_ring_sqisign.sage`
 
-Same as above for the ring signature with 3 parties. For each trial a random
+Same as above for Delfar with a ring of 3 parties. For each trial a random
 party is chosen as the signer.
 
 ```sh
@@ -47,8 +52,8 @@ sage test_ring_sqisign.sage
 
 ### `benchmark.sage`
 
-Measures average Keygen / Sign / Verify time for SQIsign and Ring SQIsign over
-all parameter sets.
+Measures the average Keygen / Sign / Verify time of SQIsign based on
+Δ-SigningKLPT⁺ (`base`) and of Delfar (`ring`) over all parameter sets.
 
 ```sh
 sage benchmark.sage
@@ -60,7 +65,7 @@ sage benchmark.sage --num-trials 5 --num-parties 4 --tests ring
 |--------|---------|---------|
 | `--num-trials N` | 10 | trials per parameter set |
 | `--num-parties N` | 3 | ring size for the `ring` benchmark |
-| `--tests {base,ring} ...` | both | which benchmarks to run |
+| `--tests {base,ring} ...` | both | which benchmarks to run: `base` is SQIsign based on Δ-SigningKLPT⁺, `ring` is Delfar |
 
 Some Sage launchers pass a literal `--` to the script. If arguments are not
 recognised, insert `--` before them:
@@ -71,14 +76,51 @@ sage benchmark.sage -- --num-trials 5
 
 ### `count_iter_INR.sage`
 
-Counts the average number of iterations inside `DeltaKLPT_plus` for each
-parameter set, under four combinations of the options `initial_reduce`,
-`shortest_alpha`, `search_prime` and `prime1mod4`. Takes `--num-trials` like
-`benchmark.sage`.
+Counts the average number of `IdealNormReduce` calls in `DeltaKLPT_plus` for
+each parameter set. Each option of `DeltaKLPT_plus` switches one of the four
+optimizations of the paper, in the order in which they are listed there:
+
+| Option | Optimization |
+|--------|--------------|
+| `initial_reduce` | reducing the common norm before the randomization phase |
+| `shortest_alpha` | reducing the norm of the randomization quaternion γ |
+| `search_prime` | enumerating candidates in the final `IdealNormReduce` call |
+| `prime1mod4` | mitigating the condition on the final common norm N |
+
+The script runs four settings: no optimization, the first two, the first three,
+and all four. The first three are the default of `DeltaKLPT_plus` and the
+setting used in Delfar. Takes `--num-trials` like `benchmark.sage`.
 
 ```sh
 sage count_iter_INR.sage --num-trials 20
 ```
+
+## Reproducing the tables of the paper
+
+The tables of the paper report averages over 100 executions for the parameter
+sets with f = 324, 500 and 664. The scripts loop over all parameter sets in
+`parameters.py`, so they also print results for f = 248.
+
+Running times of Delfar for a ring of n = 5 parties:
+
+```sh
+sage benchmark.sage --num-trials 100 --num-parties 5
+```
+
+This prints the times of both `base` and `ring`. In the paper, the KeyGen and
+Verify times of `ring` are divided by n. The Sign time is reported as the `base`
+signing time, which equals that of a ring with n = 1, plus n - 1 times the
+simulator time. The simulator time is the difference between the `ring` and
+`base` signing times divided by n - 1.
+
+Numbers of `IdealNormReduce` calls:
+
+```sh
+sage count_iter_INR.sage --num-trials 100
+```
+
+Both runs take several hours: one Delfar signature takes from several seconds to
+about a minute, depending on the parameter set.
 
 ## Third-party code
 
