@@ -125,6 +125,12 @@ sage count_iter_INR.sage --num-trials 100
 Both runs take several hours: one Delfar signature takes from several seconds to
 about a minute, depending on the parameter set.
 
+## License
+
+Except for the third-party code described below, the code in this repository is
+distributed under the MIT License
+(Copyright (c) 2026 Kohei Nakagawa and Hiroshi Onuki); see [LICENSE](LICENSE).
+
 ## Third-party code
 
 The directories `theta_structures/`, `theta_isogenies/` and `utilities/` are
