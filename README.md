@@ -2,7 +2,7 @@
 
 This repository is a proof-of-concept implementation for the paper
 [Δ-KLPT⁺: Improved Norm Bounds for the Quaternion Isogeny Path Problem
-and an Application to Ring Signatures](https://eprint.iacr.org/2026/XXXX).
+and an Application to Ring Signatures](https://eprint.iacr.org/2026/2108).
 This contains a SageMath implementation of a new KLPT-type algorithm Δ-KLPT⁺ and of Delfar,
 a fully anonymous ring signature scheme based on it. It contains the three
 components implemented for the paper:
